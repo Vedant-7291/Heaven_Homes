@@ -31,3 +31,39 @@ body {
   color: #333333;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
+
+/* Lead status pill colors — plain CSS on purpose, not Tailwind bracket
+   utilities. Tailwind's JIT scanner is supposed to pick up bg-[#..] style
+   classes wherever they appear as literal text in a source file, but in
+   practice a dynamically-interpolated ${s.bg} inside a template literal can
+   get missed on hot-reload with a stale dev cache. Plain CSS always
+   applies, since it isn't subject to any scan/purge step. The base pill
+   shape (padding, height, border-radius, etc.) still comes from the
+   Tailwind utility classes on the element itself — this only supplies the
+   per-status color trio. */
+.status-new { background-color: #e6f0fb; color: #2a6ba8; border-color: #c7ddf5; }
+.status-new .status-dot { background-color: #2a6ba8; }
+
+.status-active { background-color: #fef7e0; color: #b68b40; border-color: #f3dfa0; }
+.status-active .status-dot { background-color: #b68b40; }
+
+.status-contacted { background-color: #e0f2fe; color: #0284c7; border-color: #bae3fd; }
+.status-contacted .status-dot { background-color: #0284c7; }
+
+.status-interested { background-color: #f3e8ff; color: #7a3aa8; border-color: #e0c8fa; }
+.status-interested .status-dot { background-color: #7a3aa8; }
+
+.status-site-visit-scheduled { background-color: #fef3c7; color: #b45309; border-color: #fbe19d; }
+.status-site-visit-scheduled .status-dot { background-color: #b45309; }
+
+.status-site-visit-completed { background-color: #dcfce7; color: #15803d; border-color: #b8e6c4; }
+.status-site-visit-completed .status-dot { background-color: #15803d; }
+
+.status-lost { background-color: #fde8e8; color: #c0392b; border-color: #f7c6c2; }
+.status-lost .status-dot { background-color: #c0392b; }
+
+.status-converted { background-color: #e8f5e6; color: #2d7a3a; border-color: #c3e7bd; }
+.status-converted .status-dot { background-color: #2d7a3a; }
+
+.status-unknown { background-color: #f1f3f0; color: #5a6b5a; border-color: #dbe2d9; }
+.status-unknown .status-dot { background-color: #5a6b5a; }

@@ -97,7 +97,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
                 <img
                   src="../../../logo-heaven.png"
                   alt="Heaven Homes"
-                  className="w-12 h-12 object-contain flex-shrink-0"
+                  className="w-12 h-12 object-contain flex-shrink-0 border border-white/20 rounded-lg"
                 />
                 <div>
                   <span className="text-white font-bold text-xl tracking-wide">
