@@ -14,6 +14,7 @@ import {
   Activity,
   LogOut,
   ShieldCheck,
+  BadgeCheck,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth/useAuth';
 
@@ -36,6 +37,9 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Lead Management', path: '/leads', icon: Users },
     { name: 'Property Management', path: '/properties', icon: Building2 },
+    ...(isOwner
+      ? [{ name: 'Property Verification', path: '/properties/verify', icon: BadgeCheck }]
+      : []),
     { name: 'Site Visit Management', path: '/site-visits', icon: Calendar },
     { name: 'Rent Out Property Requests', path: '/rent-out', icon: Home },
     { name: 'Lead Assignment', path: '/leads/assign', icon: UserPlus },
@@ -84,13 +88,19 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
           ${isSidebarOpen ? 'md:w-72' : 'md:w-20'}
         `}
       >
-        {/* Header with Logo */}
-        <div className="pt-6 pb-4 px-4 border-b-2 border-gray-600 flex-shrink-0">
+        {/* Header with Logo Image — top padding gives the logo breathing room */}
+        <div className="pt-7 pb-4 px-4 border-b-2 border-gray-600 flex-shrink-0">
           {isSidebarOpen ? (
             <div className="flex flex-col">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20">
-                  <Home className="w-5 h-5 text-white" />
+              <div className="flex items-center space-x-3.5">
+                {/* Logo frame — slightly larger, softer radius */}
+                <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20 overflow-hidden flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="../../../logo-heaven.png"
+                    alt="Heaven Homes"
+                    className="w-full h-full object-contain p-1.5"
+                  />
                 </div>
                 <div>
                   <span className="text-white font-bold text-xl tracking-wide">
@@ -98,14 +108,19 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
                   </span>
                 </div>
               </div>
-              <p className="text-white/60 text-xs mt-1 ml-13 font-light tracking-wider">
+              <p className="text-white/60 text-xs mt-2 ml-14 font-light tracking-wider">
                 Give your dreams a new address
               </p>
             </div>
           ) : (
             <div className="flex justify-center">
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20">
-                <Home className="w-5 h-5 text-white" />
+              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20 overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="../../../logo-heaven.png"
+                  alt="Heaven Homes"
+                  className="w-full h-full object-contain p-1.5"
+                />
               </div>
             </div>
           )}
@@ -114,14 +129,14 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
         {/* Workspace Title */}
         {isSidebarOpen && (
           <div className="px-4 pt-4 pb-2 flex-shrink-0">
-            <p className="text-white/40 text-xs uppercase tracking-wider font-semibold">
+            <p className="text-white/40 text-[11px] uppercase tracking-wider font-semibold">
               Workspace
             </p>
           </div>
         )}
 
-        {/* Navigation — scrollable */}
-        <nav className="flex-1 px-3 py-2 overflow-y-auto">
+        {/* Navigation — comfortable spacing, no scrollbar */}
+        <nav className="flex-1 px-3 py-3 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {menuItems.map((item) => {
             const isActive = pathname === item.path;
             const Icon = item.icon;
@@ -130,21 +145,23 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
                 key={item.path}
                 href={item.path}
                 onClick={() => isMobile && toggleSidebar()}
-                className={`flex items-center px-3 py-2.5 rounded-xl mb-1 transition-all duration-200 group ${
+                className={`flex items-center px-3 py-2 rounded-xl mb-1.5 transition-all duration-200 group ${
                   isActive
                     ? 'bg-white/20 text-white shadow-lg backdrop-blur-sm'
                     : 'text-white/70 hover:bg-white/10 hover:text-white'
                 }`}
               >
                 <Icon
-                  className={`w-5 h-5 flex-shrink-0 ${
+                  className={`w-[18px] h-[18px] flex-shrink-0 ${
                     isActive
                       ? 'text-white'
                       : 'text-white/60 group-hover:text-white'
                   }`}
                 />
                 {isSidebarOpen && (
-                  <span className="ml-3 text-sm font-medium">{item.name}</span>
+                  <span className="ml-3 text-sm font-medium truncate">
+                    {item.name}
+                  </span>
                 )}
               </Link>
             );
@@ -154,21 +171,17 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
         {/* Bottom section — user info + logout */}
         <div className="flex-shrink-0 border-t border-gray-600 bg-[#092b1f]">
           {isSidebarOpen ? (
-            <div className="p-4 space-y-3">
+            <div className="p-3 space-y-2.5">
               {user && (
-                <div className="flex items-center gap-3 px-2">
-                  <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0 border border-white/20">
+                <div className="flex items-center gap-2.5 px-1.5">
+                  <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0 border border-white/20">
                     <ShieldCheck className="w-4 h-4 text-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-white text-sm font-medium truncate">
+                    <p className="text-white text-[13px] font-medium truncate leading-tight">
                       {user.name}
                     </p>
-                    <p
-                      className={`text-[10px] uppercase tracking-wider font-semibold ${
-                        isOwner ? 'text-white/60' : 'text-[#ffd97a]'
-                      }`}
-                    >
+                    <p className="text-white/60 text-[10px] uppercase tracking-wider font-semibold leading-tight mt-0.5">
                       {roleLabel}
                     </p>
                   </div>
@@ -177,13 +190,13 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
 
               <button
                 onClick={handleLogout}
-                className="w-full inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-[#fde8e8] hover:text-[#c0392b] text-white/70 border border-white/10 hover:border-[#c0392b]/40 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
+                className="w-full inline-flex items-center justify-center gap-2 bg-white/5 hover:bg-[#fde8e8] hover:text-[#c0392b] text-white/70 border border-white/10 hover:border-[#c0392b]/40 px-3 py-2 rounded-xl text-[13px] font-medium transition-colors"
               >
                 <LogOut className="w-4 h-4" />
                 Logout
               </button>
 
-              <p className="text-white/70 text-[10px] text-center font-light tracking-wider pt-1">
+              <p className="text-white/70 text-[10px] text-center font-light tracking-wider pt-0.5">
                 Heaven Homes CRM
               </p>
             </div>
@@ -191,7 +204,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
             <button
               onClick={handleLogout}
               title="Logout"
-              className="w-full flex justify-center py-4 text-white/60 hover:text-[#ff8080] hover:bg-white/5 transition-colors"
+              className="w-full flex justify-center py-3 text-white/60 hover:text-[#ff8080] hover:bg-white/5 transition-colors"
             >
               <LogOut className="w-5 h-5" />
             </button>

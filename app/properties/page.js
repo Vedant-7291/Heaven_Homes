@@ -641,6 +641,7 @@ export default function PropertiesPage() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveProperty}
         property={editingProperty}
+        isOwner={isOwner}
       />
     </div>
   );

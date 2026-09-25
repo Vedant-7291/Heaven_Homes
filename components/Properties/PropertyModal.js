@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import ImageUpload from './ImageUpload';
 
+
 const INPUT_CLASS =
   'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#2d7a3a] focus:border-[#2d7a3a]';
 
@@ -17,6 +18,16 @@ const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'North-West', '
 const FLOORS = ['Ground', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', 'Basement', 'Upper'];
 const FURNISHING = ['unfurnished', 'semi_furnished', 'fully_furnished'];
 const SETUP_TYPES = ['Bare Shell', 'Warm Shell', 'Fully Fitted', 'Furnished'];
+const TENANT_PREFERENCES = [
+  { value: 'bachelors', label: 'Bachelors' },
+  { value: 'family', label: 'Family' },
+  { value: 'both', label: 'Both' },
+];
+
+const FOOD_PREFERENCES = [
+  { value: 'vegetarian', label: 'Vegetarian' },
+  { value: 'non_vegetarian', label: 'Non-Vegetarians' },
+];
 
 const RES_BUY_TYPES = ['apartment', 'flat', 'house', 'villa', 'builder_floor', 'studio', 'penthouse', 'farmhouse'];
 const COM_BUY_TYPES = ['office', 'shop', 'showroom', 'warehouse', 'industrial', 'coworking'];
@@ -99,9 +110,11 @@ const EMPTY_FORM = {
   status: 'available',
   budgetRange: 'mid',
   location: '',
+  tenantPreferences: [],
+  foodPreferences: [],
 };
 
-export default function PropertyModal({ isOpen, onClose, onSave, property }) {
+export default function PropertyModal({ isOpen, onClose, onSave, property, isOwner = false }) {
   const [categoryTab, setCategoryTab] = useState('residential_buy');
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [uploading, setUploading] = useState(false);
@@ -143,6 +156,8 @@ export default function PropertyModal({ isOpen, onClose, onSave, property }) {
         status: property.status || 'available',
         budgetRange: property.budgetRange || 'mid',
         location: property.location || '',
+        tenantPreferences: property.tenantPreferences || [],
+foodPreferences: property.foodPreferences || [],
       });
     } else {
       setFormData(EMPTY_FORM);
@@ -188,6 +203,16 @@ export default function PropertyModal({ isOpen, onClose, onSave, property }) {
       };
     });
   };
+  const toggleArrayValue = (field, value) => {
+  setFormData((prev) => {
+    const arr = Array.isArray(prev[field]) ? prev[field] : [];
+    const has = arr.includes(value);
+    return {
+      ...prev,
+      [field]: has ? arr.filter((v) => v !== value) : [...arr, value],
+    };
+  });
+};
 
   const handleImageUpload = (imageData) => {
     setFormData((prev) => ({
@@ -217,8 +242,11 @@ export default function PropertyModal({ isOpen, onClose, onSave, property }) {
     const submitData = {
       ...formData,
       categoryTab,
+      tenantPreferences: Array.isArray(formData.tenantPreferences) ? formData.tenantPreferences : [],
+      foodPreferences: Array.isArray(formData.foodPreferences) ? formData.foodPreferences : [],
       areaSqft: Number(formData.areaSqft) || 0,
       location: `${formData.area}, ${formData.city}`,
+      
     };
 
     if (categoryTab === 'residential_buy' || categoryTab === 'commercial_buy') {
@@ -461,6 +489,47 @@ export default function PropertyModal({ isOpen, onClose, onSave, property }) {
                     {FLOORS.map((f) => <option key={f} value={f}>{f}</option>)}
                   </select>
                 </Field>
+                {/* Tenant Preferences */}
+<div className="md:col-span-3">
+  <p className="block text-sm font-medium text-gray-700 mb-1">Tenant Preferences</p>
+  <div className="flex flex-wrap gap-4">
+    {TENANT_PREFERENCES.map((opt) => (
+      <label
+        key={opt.value}
+        className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
+      >
+        <input
+          type="checkbox"
+          checked={formData.tenantPreferences.includes(opt.value)}
+          onChange={() => toggleArrayValue('tenantPreferences', opt.value)}
+          className="w-4 h-4 text-[#2d7a3a] border-gray-300 rounded focus:ring-[#2d7a3a]"
+        />
+        {opt.label}
+      </label>
+    ))}
+  </div>
+</div>
+
+{/* Food Preferences */}
+<div className="md:col-span-3">
+  <p className="block text-sm font-medium text-gray-700 mb-1">Food Preferences</p>
+  <div className="flex flex-wrap gap-4">
+    {FOOD_PREFERENCES.map((opt) => (
+      <label
+        key={opt.value}
+        className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
+      >
+        <input
+          type="checkbox"
+          checked={formData.foodPreferences.includes(opt.value)}
+          onChange={() => toggleArrayValue('foodPreferences', opt.value)}
+          className="w-4 h-4 text-[#2d7a3a] border-gray-300 rounded focus:ring-[#2d7a3a]"
+        />
+        {opt.label}
+      </label>
+    ))}
+  </div>
+</div>
               </div>
             )}
 
@@ -528,13 +597,24 @@ export default function PropertyModal({ isOpen, onClose, onSave, property }) {
                 className={INPUT_CLASS}
               />
             </Field>
-
-            <Field label="Status">
-              <select name="status" value={formData.status} onChange={handleChange} className={INPUT_CLASS}>
-                <option value="available">Available</option>
-                <option value="sold">Sold</option>
-              </select>
-            </Field>
+{isOwner ? (
+  <Field label="Status">
+    <select name="status" value={formData.status} onChange={handleChange} className={INPUT_CLASS}>
+      <option value="available">Available</option>
+      <option value="pending">Pending (Verification)</option>
+      <option value="rejected">Rejected</option>
+      <option value="sold">Sold</option>
+    </select>
+  </Field>
+) : (
+  <div className="rounded-xl border border-[#fff5d6] bg-[#fffbf0] px-4 py-3 text-sm text-[#a67c00] flex items-start gap-2">
+    <span className="text-base leading-none mt-0.5">🔎</span>
+    <span>
+      Your property will be submitted for <strong>owner verification</strong>. It will appear on
+      the Property Management page only after approval.
+    </span>
+  </div>
+)}
 
             <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-100">
               <button

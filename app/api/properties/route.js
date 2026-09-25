@@ -4,9 +4,14 @@ import Property from '@/lib/models/Property';
 import { NextResponse } from 'next/server';
 import { generateUniquePropertyId } from '@/lib/property-id';
 import { logActivity } from '@/lib/activity/log';
+import {
+  verifySessionToken,
+  SESSION_COOKIE_NAME,
+} from '@/lib/auth/session';
 
 const ALLOWED_FIELDS = [
   'title', 'internalName',
+  'tenantPreferences', 'foodPreferences',
   'city', 'area', 'propertyType', 'propertySubType',
   'budgetRange', 'price', 'configuration', 'spaceSize', 'location',
   'areaSqft', 'furnishing', 'description', 'features', 'imageUrl',
@@ -91,6 +96,7 @@ export async function GET(request) {
 }
 
 // ---------- POST ----------
+// ---------- POST ----------
 export async function POST(request) {
   try {
     if (!isDbConnected()) {
@@ -98,10 +104,19 @@ export async function POST(request) {
       if (!conn) return NextResponse.json({ error: 'DB unavailable' }, { status: 503 });
     }
 
+    // ---- Determine caller role ----
+    // Owners can publish directly. Everyone else (channel partners) must
+    // go through the verification queue, regardless of what they submit.
+    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const session = verifySessionToken(token);
+    const isOwner = session?.role === 'owner';
+
     const body = await request.json();
 
-    const requiredFields = ['title', 'city', 'area', 'propertyType', 'propertySubType',
-      'budgetRange', 'price', 'configuration', 'location', 'areaSqft'];
+    const requiredFields = [
+      'title', 'city', 'area', 'propertyType', 'propertySubType',
+      'budgetRange', 'price', 'configuration', 'location', 'areaSqft',
+    ];
     for (const field of requiredFields) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
         return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 });
@@ -113,12 +128,19 @@ export async function POST(request) {
       if (body[key] !== undefined) cleanBody[key] = body[key];
     }
 
+    // ---- Server-side status enforcement ----
+    // Never trust client-supplied `status`. Partners → pending. Owners → their choice.
+    if (!isOwner) {
+      cleanBody.status = 'pending';
+    } else {
+      cleanBody.status = body.status || 'available';
+    }
+
     const propertyId = await generateUniquePropertyId(Property, body.city, body.area);
 
     const property = new Property({
       ...cleanBody,
       propertyId,
-      status: body.status || 'available',
       views: 0,
       inquiries: 0,
     });
@@ -126,20 +148,28 @@ export async function POST(request) {
     await property.save();
 
     await logActivity(request, {
-      action: 'property.created',
+      action: isOwner ? 'property.created' : 'property.submitted_for_verification',
       category: 'property',
-      description: `Property created: ${property.title}`,
+      description: isOwner
+        ? `Property created: ${property.title}`
+        : `Property submitted for verification: ${property.title}`,
       targetType: 'Property',
       targetId: property._id,
       targetLabel: property.title,
-      severity: 'success',
-      changes: { price: property.price, city: property.city },
+      severity: isOwner ? 'success' : 'info',
+      changes: { price: property.price, city: property.city, status: property.status },
     });
 
-    console.log('✅ Property created:', propertyId);
+    console.log('✅ Property created:', propertyId, '| status:', property.status);
 
     return NextResponse.json(
-      { success: true, data: property, message: 'Property created successfully' },
+      {
+        success: true,
+        data: property,
+        message: isOwner
+          ? 'Property created successfully'
+          : 'Property submitted for verification. It will appear on the Property Management page once approved.',
+      },
       { status: 201 }
     );
   } catch (error) {

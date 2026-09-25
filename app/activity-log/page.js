@@ -29,6 +29,12 @@ const CATEGORY_TABS = [
   { value: 'team',       label: 'Team',          icon: Shield },
   { value: 'auth',       label: 'Auth',          icon: LogIn },
 ];
+const RANGE_TABS = [
+  { value: 'all',    label: 'All Time' },
+  { value: 'today',  label: 'Today' },
+  { value: '7d',     label: 'Last 7 Days' },
+  { value: '30d',    label: 'Last 30 Days' },
+];
 
 const SEVERITY_STYLES = {
   info:    { bg: 'bg-[#e6f0fb]', text: 'text-[#2a6ba8]', dot: 'bg-[#2a6ba8]', label: 'Info' },
@@ -91,6 +97,7 @@ export default function ActivityLogPage() {
   });
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
+  const [range, setRange] = useState('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
@@ -116,6 +123,7 @@ export default function ActivityLogPage() {
         limit: '30',
       });
       if (search) params.set('search', search);
+      if (range && range !== 'all') params.set('range', range);
       const res = await fetch(`/api/activity?${params}`);
       const json = await res.json();
       if (json.success) {
@@ -130,7 +138,7 @@ export default function ActivityLogPage() {
     } finally {
       setLoading(false);
     }
-  }, [category, page, search]);
+  }, [category, page, search, range]);
 
   useEffect(() => {
     fetchStats();
@@ -151,6 +159,11 @@ export default function ActivityLogPage() {
     setPage(1);
     setExpandedId(null);
   };
+  const handleRangeChange = (value) => {
+  setRange(value);
+  setPage(1);
+  setExpandedId(null);
+};
 
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
@@ -189,25 +202,46 @@ export default function ActivityLogPage() {
       {/* Tabs + Search */}
       <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 mb-6 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div className="flex gap-1 overflow-x-auto pb-1 lg:pb-0">
-            {CATEGORY_TABS.map(({ value, label, icon: Icon }) => {
-              const isActive = category === value;
-              return (
-                <button
-                  key={value}
-                  onClick={() => handleCategoryChange(value)}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
-                    isActive
-                      ? 'bg-[#2d7a3a] text-white shadow-sm'
-                      : 'text-[#4f6b4f] hover:bg-[#f0f7ef]'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+         <div className="flex gap-1 overflow-x-auto pb-1 lg:pb-0">
+  {CATEGORY_TABS.map(({ value, label, icon: Icon }) => {
+    const isActive = category === value;
+    return (
+      <button
+        key={value}
+        onClick={() => handleCategoryChange(value)}
+        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+          isActive
+            ? 'bg-[#2d7a3a] text-white shadow-sm'
+            : 'text-[#4f6b4f] hover:bg-[#f0f7ef]'
+        }`}
+      >
+        <Icon className="w-4 h-4" />
+        {label}
+      </button>
+    );
+  })}
+
+  {/* Divider */}
+  <span className="hidden lg:block w-px bg-[#e8f0e6] mx-1 self-stretch" aria-hidden />
+
+  {/* Range tabs */}
+  {RANGE_TABS.map(({ value, label }) => {
+    const isActive = range === value;
+    return (
+      <button
+        key={value}
+        onClick={() => handleRangeChange(value)}
+        className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+          isActive
+            ? 'bg-[#092b1f] text-white shadow-sm'
+            : 'text-[#4f6b4f] hover:bg-[#f0f7ef]'
+        }`}
+      >
+        {label}
+      </button>
+    );
+  })}
+</div>
 
           <div className="relative w-full lg:w-72 flex-shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6a7f6a]" />

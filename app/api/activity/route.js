@@ -44,6 +44,22 @@ export async function GET(request) {
       if (from) query.createdAt.$gte = new Date(from);
       if (to) query.createdAt.$lte = new Date(to);
     }
+    const range = searchParams.get('range'); // 'today' | '7d' | '30d' | null
+if (range === 'today') {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  query.createdAt = { $gte: start };
+} else if (range === '7d') {
+  const start = new Date();
+  start.setDate(start.getDate() - 7);
+  start.setHours(0, 0, 0, 0);
+  query.createdAt = { $gte: start };
+} else if (range === '30d') {
+  const start = new Date();
+  start.setDate(start.getDate() - 30);
+  start.setHours(0, 0, 0, 0);
+  query.createdAt = { $gte: start };
+}
 
     const [events, total] = await Promise.all([
       Activity.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),

@@ -695,6 +695,23 @@ function formatFacing(f, lang = 'en') {
   if (FACING_LABELS[key]) return t(lang, FACING_LABELS[key]);
   return f;
 }
+const TENANT_PREF_LABELS = {
+  bachelors: { en: 'Bachelors', hi: 'बैचलर', gu: 'બેચલર' },
+  family:    { en: 'Family',    hi: 'परिवार',  gu: 'પરિવાર' },
+  both:      { en: 'Both',      hi: 'दोनों',   gu: 'બંને' },
+};
+
+const FOOD_PREF_LABELS = {
+  vegetarian:     { en: 'Vegetarian',      hi: 'शाकाहारी',      gu: 'શાકાહારી' },
+  non_vegetarian: { en: 'Non-Vegetarian',  hi: 'मांसाहारी',     gu: 'માંસાહારી' },
+};
+
+function formatPreferenceList(arr, labelMap, lang = 'en') {
+  if (!Array.isArray(arr) || arr.length === 0) return '';
+  return arr
+    .map((v) => (labelMap[v] ? t(lang, labelMap[v]) : v))
+    .join(', ');
+}
 
 const FLOOR_LABELS = {
   ground: { en: 'Ground', hi: 'ग्राउंड', gu: 'ગ્રાઉન્ડ' },
@@ -748,6 +765,8 @@ const CARD_LABELS = {
   availableFrom: { en: 'Available From', hi: 'उपलब्ध तिथि', gu: 'ઉપલબ્ધ તારીખ' },
   features: { en: 'Features', hi: 'विशेषताएं', gu: 'સુવિધાઓ' },
   sqft: { en: 'Sq. Ft.', hi: 'वर्ग फुट', gu: 'ચો. ફૂટ' },
+  tenantPreferences: { en: 'Tenant Preferences', hi: 'किरायेदार प्राथमिकता', gu: 'ભાડૂત પ્રાથમિકતા' },
+foodPreferences:   { en: 'Food Preferences',   hi: 'भोजन प्राथमिकता',      gu: 'ભોજન પ્રાથમિકતા' },
 };
 
 function propertyCardCaption(property, lang = 'en') {
@@ -797,6 +816,26 @@ function propertyCardCaption(property, lang = 'en') {
   if (property.floor) {
     lines.push(`🏢 ${L('floor')} : ${formatFloor(property.floor, lang)} ${L('floorSuffix')}`);
   }
+  // Rent-only: tenant + food preferences
+if (isRent || property.propertyType === 'commercial') {
+  const tenantLabel = formatPreferenceList(
+    property.tenantPreferences,
+    TENANT_PREF_LABELS,
+    lang
+  );
+  if (tenantLabel) {
+    lines.push(`👥 ${L('tenantPreferences')} : ${tenantLabel}`);
+  }
+
+  const foodLabel = formatPreferenceList(
+    property.foodPreferences,
+    FOOD_PREF_LABELS,
+    lang
+  );
+  if (foodLabel) {
+    lines.push(`🍽️ ${L('foodPreferences')} : ${foodLabel}`);
+  }
+}
 
   if (property.availableFrom) {
     lines.push(`📅 ${L('availableFrom')} : ${property.availableFrom}`);
@@ -835,9 +874,16 @@ const PROPERTY_CARD_HEADER = {
  * - Fallback    → "couldn't find exact match, but here's something similar"
  */
 async function sendPropertyCard(phone, property, { isFallback = false, lang = 'en' } = {}) {
-  const header = t(lang, isFallback ? PROPERTY_CARD_HEADER.fallback : PROPERTY_CARD_HEADER.match);
+  // Send the intro message FIRST, on its own, so WhatsApp shows it as a
+  // distinct bubble above the card.
+  const header = t(
+    lang,
+    isFallback ? PROPERTY_CARD_HEADER.fallback : PROPERTY_CARD_HEADER.match
+  );
+  await sendText(phone, header);
 
-  const caption = header + propertyCardCaption(property, lang);
+  // Then send the card with only the property details (no header text).
+  const caption = propertyCardCaption(property, lang);
 
   if (property.imageUrl) {
     await sendImageWithCaption(phone, property.imageUrl, caption);
@@ -1863,6 +1909,9 @@ async function sendStepPrompt(phone, stepId, step, lead) {
       isFallback: !lead._hadExactMatch,
       lang,
     });
+
+     await new Promise((r) => setTimeout(r, 900));
+     
     const buttons = showingPropertyCtx.buttons.map((o) => ({ id: o.id, title: t(lang, o.title) }));
     await sendButtons(phone, t(lang, promptTri), buttons);
     return;

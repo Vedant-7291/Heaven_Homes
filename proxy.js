@@ -1,4 +1,4 @@
-// proxy.ts  (project root — Next.js 16 renamed middleware → proxy)
+// proxy.js (project root — Next.js 16 renamed middleware → proxy)
 import { NextResponse } from 'next/server';
 
 const SESSION_COOKIE_NAME = 'hh_session';
@@ -48,15 +48,20 @@ export async function proxy(request) {
   const { pathname } = request.nextUrl;
 
   // ---- PUBLIC PATHS ----
-  if (
-    pathname === '/login' ||
+  const isPublicApi =
     pathname.startsWith('/api/auth/') ||
-    pathname === '/api/webhook' ||                  // ← WhatsApp webhook — MUST be public
+    pathname === '/api/webhook';   // WhatsApp webhook — Meta posts here, no cookie
+
+  const isPublicPage =
+    pathname === '/' ||
+    pathname === '/login';
+
+  const isStaticAsset =
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
-    pathname.startsWith('/static') ||
-    pathname === '/'
-  ) {
+    pathname.startsWith('/static');
+
+  if (isPublicApi || isPublicPage || isStaticAsset) {
     return NextResponse.next();
   }
 
@@ -64,13 +69,32 @@ export async function proxy(request) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const secret = process.env.AUTH_SECRET;
 
+  // If the secret is missing, that's a server misconfiguration — return a
+  // JSON 500 for API paths so the frontend gets a useful error, and a
+  // redirect for HTML pages.
   if (!secret) {
     console.error('[proxy] AUTH_SECRET missing');
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Server misconfigured', message: 'AUTH_SECRET missing' },
+        { status: 500 }
+      );
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   const payload = await verifySessionTokenEdge(token, secret);
+
   if (!payload) {
+    // ── API routes: return JSON 401, do NOT redirect ──
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Unauthorized', message: 'Please log in' },
+        { status: 401 }
+      );
+    }
+
+    // ── HTML pages: redirect to login with a return URL ──
     const url = new URL('/login', request.url);
     url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);

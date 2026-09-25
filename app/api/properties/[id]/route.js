@@ -7,9 +7,14 @@ import {
   notifyLandlordApproved,
   notifyLandlordRented,
 } from '@/lib/notify-landlord';
+import {
+  verifySessionToken,
+  SESSION_COOKIE_NAME,
+} from '@/lib/auth/session';
 
 const ALLOWED_UPDATE_FIELDS = [
   'title', 'internalName',
+  'tenantPreferences', 'foodPreferences',
   'city', 'area', 'propertyType', 'propertySubType',
   'budgetRange', 'price', 'configuration', 'spaceSize', 'location',
   'areaSqft', 'furnishing', 'status', 'description', 'features',
@@ -62,11 +67,16 @@ export async function PUT(request, { params }) {
     if (!id || !isValidObjectId(id)) {
       return NextResponse.json({ error: 'Invalid property ID format' }, { status: 400 });
     }
+    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+const session = verifySessionToken(token);
+const isOwner = session?.role === 'owner';
 
-    const cleanBody = {};
-    for (const key of ALLOWED_UPDATE_FIELDS) {
-      if (body[key] !== undefined) cleanBody[key] = body[key];
-    }
+   const cleanBody = {};
+for (const key of ALLOWED_UPDATE_FIELDS) {
+  if (body[key] === undefined) continue;
+  if (key === 'status' && !isOwner) continue;  // ← ignore status changes from non-owners
+  cleanBody[key] = body[key];
+}
 
     const existing = await Property.findById(id);
     if (!existing) return NextResponse.json({ error: 'Property not found' }, { status: 404 });
