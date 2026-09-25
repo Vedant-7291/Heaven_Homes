@@ -592,21 +592,53 @@ function scorePropertyMatch(property, lead) {
 }
 
 /**
- * Returns ranked matches. Never filters out everything — if a lead matches
- * no exact criteria, still returns the top 10 by score so we can show
- * "similar properties" fallbacks.
+ * Returns ranked matches, STRICTLY bounded to the lead's chosen city.
+ *
+ * City is a hard filter — a property in a different city/state must never
+ * be returned, even as a "similar property" fallback. Area, on the other
+ * hand, is intentionally NOT filtered here — it's only used as a scoring
+ * signal in scorePropertyMatch, so a property in a nearby/different area of
+ * the SAME city can still show up as a "similar" suggestion.
+ *
+ * Never filters out everything within the city — if a lead matches no exact
+ * criteria, still returns the top 10 (within that city) by score so we can
+ * show "similar properties" fallbacks. If the city itself has zero
+ * available properties, this returns an empty array (handled by the
+ * no_match step) rather than falling back to other cities.
  */
 async function findMatchingProperties(lead) {
-  const query = { status: 'available' };
+  const city = (lead.city || '').trim();
+
+  // Hard city boundary. Exact match (case-insensitive) since askCity only
+  // ever accepts a value that matches one of getServedCities() exactly.
+  const cityFilter = city
+    ? { city: new RegExp(`^${escapeRegex(city)}$`, 'i') }
+    : {};
+
+  const baseQuery = { status: 'available', ...cityFilter };
+  const query = { ...baseQuery };
   if (lead.propertyType) query.propertyType = lead.propertyType;
 
   let properties = await Property.find(query).limit(80);
 
+  // If nothing matches the propertyType, relax that — but NEVER relax city.
   if (properties.length === 0) {
-    properties = await Property.find({ status: 'available' }).limit(80);
+    properties = await Property.find(baseQuery).limit(80);
   }
 
-  const ranked = properties
+  // Exclude properties already shown to this lead in the current match run,
+  // so "Show Another" never re-surfaces the same card once the person has
+  // already been through the full matched list.
+  const alreadyShownIds = new Set(
+    (lead.matchedProperties || []).map((id) => id.toString())
+  );
+  const freshProperties =
+    alreadyShownIds.size > 0
+      ? properties.filter((p) => !alreadyShownIds.has(p._id.toString()))
+      : properties;
+  const candidatePool = freshProperties.length > 0 ? freshProperties : properties;
+
+  const ranked = candidatePool
     .map((property) => ({ property, score: scorePropertyMatch(property, lead) }))
     .sort(
       (a, b) =>
@@ -1508,14 +1540,41 @@ const STEPS = {
         const ids = (lead.matchedProperties || []).map((id) => id.toString());
         const tappedIdx = ids.indexOf(taggedPropertyId);
         const baseIdx = tappedIdx === -1 ? lead.currentPropertyIndex || 0 : tappedIdx;
-        lead.currentPropertyIndex = (baseIdx + 1) % lead.matchedProperties.length;
+        const nextIdx = baseIdx + 1;
+
+        if (nextIdx >= ids.length) {
+          // Every matched property has now been shown once. Do NOT wrap
+          // back to index 0 — that would repeat a card the person has
+          // already seen. Flag it so `next()` (called right after this, on
+          // the same lead instance) routes to the "all shown" step instead.
+          lead._allPropertiesShown = true;
+        } else {
+          lead.currentPropertyIndex = nextIdx;
+        }
       }
     },
     next: async (lead, value) => {
       if (value.startsWith('interested::')) return 'askSiteVisit';
       if (value === 'talk_to_agent') return 'completed';
+      if (value.startsWith('show_another::') && lead._allPropertiesShown) {
+        return 'all_properties_shown';
+      }
       return 'showing_property';
     },
+  },
+
+  all_properties_shown: {
+    kind: 'message',
+    prompt: () => ({
+      en: "You've seen all the properties we currently have matching your search. 🏡\n\nWould you like us to notify you when a new matching property is listed, or talk to an expert now?",
+      hi: 'आपने अपनी खोज से मेल खाने वाली हमारी सभी संपत्तियां देख ली हैं। 🏡\n\nक्या आप चाहेंगे कि नई मेल खाने वाली संपत्ति लिस्ट होने पर हम आपको सूचित करें, या अभी किसी विशेषज्ञ से बात करें?',
+      gu: 'તમે તમારી શોધ સાથે મેળ ખાતી અમારી બધી પ્રોપર્ટીઝ જોઈ લીધી છે. 🏡\n\nશું તમે ઈચ્છો છો કે નવી મેળ ખાતી પ્રોપર્ટી લિસ્ટ થાય ત્યારે અમે તમને જણાવીએ, કે અત્યારે નિષ્ણાત સાથે વાત કરો?',
+    }),
+    options: [
+      { id: 'notify_me', title: { en: '🔔 Notify Me', hi: '🔔 सूचित करें', gu: '🔔 જણાવો' } },
+      { id: 'talk_to_expert', title: { en: '📞 Talk to Expert', hi: '📞 विशेषज्ञ से बात करें', gu: '📞 નિષ્ણાત સાથે વાત કરો' } },
+    ],
+    next: async () => 'completed',
   },
 
   no_match: {
@@ -1950,6 +2009,49 @@ async function sendWelcomeAndLanguagePrompt(phone, lead) {
   await sendStepPrompt(phone, 'askLanguage', STEPS.askLanguage, lead);
 }
 
+/**
+ * The two CTA buttons shown at every flow-ending message (site visit
+ * booked, listing confirmed, no match found, all properties shown, user
+ * declined a site visit, cancelled a visit, or picked "talk to agent").
+ * Restart uses id 'restart' so it flows through isRestartAction() exactly
+ * like today's typed "restart". Main Menu uses id 'main_menu', handled in
+ * handleMessage() to jump back to askPropertyCategory without wiping the
+ * already-known city/area.
+ */
+function getEndFlowCtaButtons(lang) {
+  return [
+    {
+      id: 'restart',
+      title: t(lang, { en: '🔄 Restart', hi: '🔄 पुनः आरंभ करें', gu: '🔄 ફરી શરૂ કરો' }),
+    },
+    {
+      id: 'main_menu',
+      title: t(lang, { en: '📋 Main Menu', hi: '📋 मुख्य मेनू', gu: '📋 મુખ્ય મેનૂ' }),
+    },
+  ];
+}
+
+/**
+ * Single choke point for sending ANY flow-ending message. Always attaches
+ * the Restart / Main Menu CTA buttons so no end point is ever a dead end.
+ */
+async function sendTerminalMessage(phone, lead, text, terminalTag) {
+  const lang = lead.preferredLanguage || 'en';
+  const ctaButtons = getEndFlowCtaButtons(lang);
+
+  if (lead) {
+    pushConversation(lead, {
+      direction: 'out',
+      type: 'interactive',
+      text,
+      payload: { terminal: terminalTag, options: ctaButtons },
+    });
+    try { await lead.save(); } catch (e) { console.error(e); }
+  }
+
+  await sendButtons(phone, text, ctaButtons);
+}
+
 async function finalizeCompletedStepMessage(phone, lead, fromStepId, answerValue) {
   const lang = lead.preferredLanguage || 'en';
 
@@ -1957,7 +2059,7 @@ async function finalizeCompletedStepMessage(phone, lead, fromStepId, answerValue
 
   if (fromStepId === 'showing_property' && answerValue === 'talk_to_agent') {
     outboundText = TERMINAL_MESSAGES.talkToExpertMessage(lang);
-  } else if (fromStepId === 'no_match') {
+  } else if (fromStepId === 'no_match' || fromStepId === 'all_properties_shown') {
     outboundText =
       answerValue === 'notify_me'
         ? TERMINAL_MESSAGES.notifyMeMessage(lang)
@@ -1972,17 +2074,7 @@ async function finalizeCompletedStepMessage(phone, lead, fromStepId, answerValue
     outboundText = TERMINAL_MESSAGES.thankYouGeneric(lang);
   }
 
-  if (lead) {
-    pushConversation(lead, {
-      direction: 'out',
-      type: 'text',
-      text: outboundText,
-      payload: { terminal: fromStepId },
-    });
-    try { await lead.save(); } catch (e) { console.error(e); }
-  }
-
-  await sendText(phone, outboundText);
+  await sendTerminalMessage(phone, lead, outboundText, fromStepId);
 }
 
 async function advanceThroughSystemSteps(lead, stepId) {
@@ -2015,15 +2107,7 @@ async function completeRentOutListing(phone, lead) {
   await lead.save();
 
   const message = TERMINAL_MESSAGES.listingConfirmed(lang);
-  pushConversation(lead, {
-    direction: 'out',
-    type: 'text',
-    text: message,
-    payload: { terminal: 'listingConfirmed' },
-  });
-  try { await lead.save(); } catch (e) { console.error(e); }
-
-  await sendText(phone, message);
+  await sendTerminalMessage(phone, lead, message, 'listingConfirmed');
 }
 
 async function handleListPhotosMessage(phone, lead, incoming) {
@@ -2208,13 +2292,11 @@ async function handleMessage(phone, incoming) {
     await unsubscribeLead(lead);
 
     const msg = t(lang, {
-      en: "You've been unsubscribed from follow-up messages. Type *restart* anytime to search again. 👋",
-      hi: 'आपने फॉलो-अप संदेशों से सदस्यता समाप्त कर दी है। फिर से खोजने के लिए कभी भी *restart* लिखें।',
-      gu: 'તમે ફોલો-અપ સંદેશાઓમાંથી અનસબ્સ્ક્રાઇબ થયા છો. ફરીથી શોધવા ગમે ત્યારે *restart* લખો.',
+      en: "You've been unsubscribed from follow-up messages. 👋",
+      hi: 'आपने फॉलो-अप संदेशों से सदस्यता समाप्त कर दी है। 👋',
+      gu: 'તમે ફોલો-અપ સંદેશાઓમાંથી અનસબ્સ્ક્રાઇબ થયા છો. 👋',
     });
-    pushConversation(lead, { direction: 'out', type: 'text', text: msg });
-    await lead.save();
-    await sendText(phone, msg);
+    await sendTerminalMessage(phone, lead, msg, 'stopFollowUp');
     return;
   }
 
@@ -2232,6 +2314,21 @@ async function handleMessage(phone, incoming) {
     pushConversation(lead, { direction: 'out', type: 'text', text: msg });
     await lead.save();
     await sendText(phone, msg);
+    return;
+  }
+
+  // "Main Menu" CTA — unlike restart, this does NOT wipe the lead's
+  // progress. It drops the person straight back at the
+  // Buy / Find a Rental / Rent Out choice (askPropertyCategory), reusing
+  // the city & area already collected earlier in this session, then lets
+  // the normal step flow run again from there (any answers picked on this
+  // next pass overwrite the old ones as usual).
+  if (interactiveId === 'main_menu') {
+    touchLeadActivity(lead);
+    pushStatusChange(lead, 'active', 'whatsapp_bot', 'Returned to main menu');
+    lead.step = 'askPropertyCategory';
+    await lead.save();
+    await sendStepPrompt(phone, 'askPropertyCategory', STEPS.askPropertyCategory, lead);
     return;
   }
 
@@ -2297,12 +2394,15 @@ async function handleMessage(phone, incoming) {
       if (step.onInvalid) {
         const result = await step.onInvalid(lead, lang);
         await lead.save();
-        let errMsg;
         if (result.redirectTo) {
-          errMsg = `${result.text}\n\n${TERMINAL_MESSAGES[result.redirectTo](lang)}`;
-        } else {
-          errMsg = result.text;
+          // onInvalid already set lead.step = 'completed' here (max
+          // attempts exceeded) — this is a genuine flow end, so it gets
+          // the same Restart / Main Menu CTAs as every other end point.
+          const errMsg = `${result.text}\n\n${TERMINAL_MESSAGES[result.redirectTo](lang)}`;
+          await sendTerminalMessage(phone, lead, errMsg, `${lead.step}_maxAttempts`);
+          return;
         }
+        const errMsg = result.text;
         pushConversation(lead, { direction: 'out', type: 'text', text: errMsg });
         await lead.save();
         await sendText(phone, errMsg);

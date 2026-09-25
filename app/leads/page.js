@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
   Search, Users, UserCheck, UserPlus,
-  Phone, MapPin, DollarSign, Eye, Trash2,
+  Phone, MapPin, Eye, Trash2,
   ChevronLeft, ChevronRight, FolderOpen, Star,
 } from 'lucide-react';
 
@@ -207,7 +207,7 @@ export default function LeadsPage() {
                       </td>
                       <td className="px-5 py-3">
                         <p className="text-sm text-[#4f6b4f] flex items-center gap-1">
-                          <DollarSign className="w-3 h-3 text-[#6a7f6a]" />
+                          
                           {lead.rentBudgetLabel || lead.budgetRange || '—'}
                         </p>
                       </td>
@@ -235,12 +235,12 @@ export default function LeadsPage() {
                           {lead.assignedTo || <span className="text-[#6a7f6a]">Unassigned</span>}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full ${s.bg} ${s.text}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-                          {s.label}
-                        </span>
-                      </td>
+                     <td className="px-5 py-3 align-middle">
+  <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap ${s.bg} ${s.text}`}>
+    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} />
+    {s.label}
+  </span>
+</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end gap-1.5">
                           <button

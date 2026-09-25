@@ -88,20 +88,17 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
           ${isSidebarOpen ? 'md:w-72' : 'md:w-20'}
         `}
       >
-        {/* Header with Logo Image — top padding gives the logo breathing room */}
+        {/* Header with Logo */}
         <div className="pt-7 pb-4 px-4 border-b-2 border-gray-600 flex-shrink-0">
           {isSidebarOpen ? (
             <div className="flex flex-col">
               <div className="flex items-center space-x-3.5">
-                {/* Logo frame — slightly larger, softer radius */}
-                <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20 overflow-hidden flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="../../../logo-heaven.png"
-                    alt="Heaven Homes"
-                    className="w-full h-full object-contain p-1.5"
-                  />
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="../../../logo-heaven.png"
+                  alt="Heaven Homes"
+                  className="w-12 h-12 object-contain flex-shrink-0"
+                />
                 <div>
                   <span className="text-white font-bold text-xl tracking-wide">
                     Heaven Homes
@@ -114,14 +111,12 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
             </div>
           ) : (
             <div className="flex justify-center">
-              <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-sm border border-white/20 overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="../../../logo-heaven.png"
-                  alt="Heaven Homes"
-                  className="w-full h-full object-contain p-1.5"
-                />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="../../../logo-heaven.png"
+                alt="Heaven Homes"
+                className="w-11 h-11 object-contain"
+              />
             </div>
           )}
         </div>
@@ -135,7 +130,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
           </div>
         )}
 
-        {/* Navigation — comfortable spacing, no scrollbar */}
+        {/* Navigation */}
         <nav className="flex-1 px-3 py-3 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {menuItems.map((item) => {
             const isActive = pathname === item.path;
@@ -173,7 +168,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
           {isSidebarOpen ? (
             <div className="p-3 space-y-2.5">
               {user && (
-                <div className="flex items-center gap-2.5 px-1.5">
+                <div className="flex items-center gap-4 px-3 py-1">
                   <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0 border border-white/20">
                     <ShieldCheck className="w-4 h-4 text-white" />
                   </div>
@@ -181,7 +176,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
                     <p className="text-white text-[13px] font-medium truncate leading-tight">
                       {user.name}
                     </p>
-                    <p className="text-white/60 text-[10px] uppercase tracking-wider font-semibold leading-tight mt-0.5">
+                    <p className="text-white/60 text-[10px] uppercase tracking-wider font-semibold leading-tight mt-1">
                       {roleLabel}
                     </p>
                   </div>
