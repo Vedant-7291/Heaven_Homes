@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
-  ArrowLeft, User, Phone, MapPin, Calendar, MessageSquare,
-  Star, Building2, FolderOpen, Clock, Image as ImageIcon,
-  Briefcase, Bell, CheckCircle, ChevronDown,
+  ArrowLeft, Phone, MapPin, MessageSquare,
+  Star, Building2, Image as ImageIcon,
+  Bell, Calendar,
 } from 'lucide-react';
 
 const TABS = [
@@ -36,7 +36,6 @@ export default function LeadDetailPage() {
   const [subData, setSubData] = useState({ enquiry: [], interested: [], conversation: [], followUps: null, visits: [] });
   const [subLoading, setSubLoading] = useState(false);
 
-  // Fetch lead
   useEffect(() => {
     (async () => {
       try {
@@ -49,42 +48,38 @@ export default function LeadDetailPage() {
     })();
   }, [params.id]);
 
-  // Fetch sub-resources lazily based on tab
- useEffect(() => {
-  if (!lead) return;
-  (async () => {
-    setSubLoading(true);
-    try {
-      const endpointMap = {
-        enquiry: `/api/leads/${lead._id}/enquiries`,
-        interested: `/api/leads/${lead._id}/interests`,
-        conversation: `/api/leads/${lead._id}/conversation`,
-        followups: `/api/leads/${lead._id}/follow-ups`,
-        visits: `/api/leads/${lead._id}/site-visits`,
-      };
+  useEffect(() => {
+    if (!lead) return;
+    (async () => {
+      setSubLoading(true);
+      try {
+        const endpointMap = {
+          enquiry: `/api/leads/${lead._id}/enquiries`,
+          interested: `/api/leads/${lead._id}/interests`,
+          conversation: `/api/leads/${lead._id}/conversation`,
+          followups: `/api/leads/${lead._id}/follow-ups`,
+          visits: `/api/leads/${lead._id}/site-visits`,
+        };
+        const key = activeTab;
+        const url = endpointMap[key];
 
-      const key = activeTab;
-      const url = endpointMap[key];
-      console.log('[lead-detail] fetching', key, url);
+        const res = await fetch(url);
+        const json = await res.json();
 
-      const res = await fetch(url);
-      const json = await res.json();
-      console.log('[lead-detail] response', key, json);
-
-      if (json.success) {
-        if (key === 'followups') {
-          setSubData((p) => ({ ...p, followUps: json.data }));
-        } else {
-          setSubData((p) => ({ ...p, [key]: json.data }));
+        if (json.success) {
+          if (key === 'followups') {
+            setSubData((p) => ({ ...p, followUps: json.data }));
+          } else {
+            setSubData((p) => ({ ...p, [key]: json.data }));
+          }
         }
+      } catch (e) {
+        console.error('[lead-detail] fetch error', e);
+      } finally {
+        setSubLoading(false);
       }
-    } catch (e) {
-      console.error('[lead-detail] fetch error', e);
-    } finally {
-      setSubLoading(false);
-    }
-  })();
-}, [activeTab, lead]);
+    })();
+  }, [activeTab, lead]);
 
   const updateLead = async (patch) => {
     try {
@@ -116,24 +111,29 @@ export default function LeadDetailPage() {
 
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
-      {/* Header */}
-      <div className="mb-6 mt-14 md:mt-0">
+      <div className="mb-6 mt-16 md:mt-0">
         <button
           onClick={() => router.push('/leads')}
           className="text-sm text-[#6a7f6a] hover:text-[#1a2e1a] mb-2 inline-flex items-center gap-1.5 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Leads
         </button>
-        <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a]">{lead.name || 'Lead'}</h1>
-        <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-[#4f6b4f]">
-          <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> {lead.phone}</span>
-          <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {lead.city || '—'}{lead.area ? `, ${lead.area}` : ''}</span>
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1a2e1a] break-words">
+          {lead.name || 'Lead'}
+        </h1>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-[#4f6b4f]">
+          <span className="flex items-center gap-1.5">
+            <Phone className="w-3.5 h-3.5" /> {lead.phone}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5" /> {lead.city || '—'}{lead.area ? `, ${lead.area}` : ''}
+          </span>
         </div>
       </div>
 
       {/* Info card */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-5 shadow-sm mb-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 sm:p-5 shadow-sm mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Field label="Name" value={lead.name} />
           <Field label="Contact Number" value={lead.phone} />
           <Field label="City / Area" value={`${lead.city || '—'}${lead.area ? ' / ' + lead.area : ''}`} />
@@ -165,8 +165,10 @@ export default function LeadDetailPage() {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`px-4 md:px-6 py-3 text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-2 ${
-                activeTab === id ? 'text-[#2d7a3a] border-b-2 border-[#2d7a3a]' : 'text-[#6a7f6a] hover:text-[#1a2e1a]'
+              className={`px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-2 ${
+                activeTab === id
+                  ? 'text-[#2d7a3a] border-b-2 border-[#2d7a3a]'
+                  : 'text-[#6a7f6a] hover:text-[#1a2e1a]'
               }`}
             >
               <Icon className="w-4 h-4" /> {label}
@@ -199,9 +201,9 @@ export default function LeadDetailPage() {
 
 function Field({ label, value, children }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs font-medium text-[#6a7f6a] uppercase tracking-wider mb-1">{label}</p>
-      {children || <p className="text-sm font-medium text-[#1a2e1a]">{value || '—'}</p>}
+      {children || <p className="text-sm font-medium text-[#1a2e1a] break-words">{value || '—'}</p>}
     </div>
   );
 }
@@ -223,7 +225,7 @@ function EnquiryTab({ enquiries }) {
               hour: '2-digit', minute: '2-digit',
             })}
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <Detail label="City" value={e.city} />
             <Detail label="Area" value={e.area} />
             <Detail label="Purpose" value={e.purpose} />
@@ -253,7 +255,6 @@ function InterestedTab({ interests }) {
         const p = typeof it.property === 'object' && it.property !== null ? it.property : null;
         const publicTitle = p?.title || it.propertyTitle || 'Property';
         const internalName = p?.internalName || it.propertySnapshot?.internalName || '';
-        const code = p?.propertyId || it.propertyCode || '';
         const city = p?.city || it.propertySnapshot?.city || '';
         const area = p?.area || it.propertySnapshot?.area || '';
         const price = p?.price || it.propertySnapshot?.price || 0;
@@ -262,29 +263,28 @@ function InterestedTab({ interests }) {
         return (
           <div
             key={it._id || `int-${idx}`}
-            className="border border-[#eef5ec] rounded-xl p-3 flex items-center gap-3 hover:bg-[#fafffa] transition-colors"
+            className="border border-[#eef5ec] rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-[#fafffa] transition-colors"
           >
             {image ? (
               <img
                 src={image}
                 alt={publicTitle}
-                className="w-16 h-16 rounded-xl object-cover flex-shrink-0 border border-[#eef5ec]"
+                className="w-full sm:w-16 h-40 sm:h-16 rounded-xl object-cover flex-shrink-0 border border-[#eef5ec]"
               />
             ) : (
-              <div className="w-16 h-16 rounded-xl bg-[#f0f7ef] flex items-center justify-center flex-shrink-0 border border-[#eef5ec]">
+              <div className="w-full sm:w-16 h-40 sm:h-16 rounded-xl bg-[#f0f7ef] flex items-center justify-center flex-shrink-0 border border-[#eef5ec]">
                 <ImageIcon className="w-6 h-6 text-[#6a7f6a]" />
               </div>
             )}
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <Star className="w-3.5 h-3.5 text-[#f59e0b] fill-[#f59e0b]" />
+                <Star className="w-3.5 h-3.5 text-[#f59e0b] fill-[#f59e0b] flex-shrink-0" />
                 <span className="text-sm font-medium text-[#1a2e1a] truncate">
                   {publicTitle}
                 </span>
               </div>
 
-              {/* Internal name — only shown to admins */}
               {internalName && (
                 <p className="text-xs text-[#7a3aa8] bg-[#f3e8ff] inline-flex items-center gap-1 px-2 py-0.5 rounded mb-1">
                   <span className="font-medium">Private:</span> {internalName}
@@ -304,7 +304,7 @@ function InterestedTab({ interests }) {
               </p>
             </div>
 
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-sm font-semibold text-[#2d7a3a]">
                 ₹{Number(price).toLocaleString('en-IN')}
               </p>
@@ -323,7 +323,7 @@ function ConversationTab({ conversation }) {
     <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
       {conversation.map((c) => (
         <div key={c._id} className={`flex ${c.direction === 'in' ? 'justify-start' : 'justify-end'}`}>
-          <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+          <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 sm:px-4 py-2 ${
             c.direction === 'in'
               ? 'bg-[#f0f7ef] text-[#1a2e1a] border border-[#e8f0e6]'
               : 'bg-[#2d7a3a] text-white'
@@ -335,7 +335,7 @@ function ConversationTab({ conversation }) {
                 <p className="text-sm italic">📷 Image</p>
               )
             ) : (
-              <p className="text-sm whitespace-pre-wrap">{c.text || '—'}</p>
+              <p className="text-sm whitespace-pre-wrap break-words">{c.text || '—'}</p>
             )}
             {c.payload?.buttons && (
               <div className="flex flex-wrap gap-1 mt-2">
@@ -389,7 +389,7 @@ function FollowUpsTab({ data }) {
             {data.messages.map((m) => (
               <div key={m._id} className="border border-[#eef5ec] rounded-xl p-3 bg-[#fafffa]">
                 <p className="text-xs text-[#6a7f6a] mb-1">{new Date(m.at).toLocaleString('en-IN')}</p>
-                <p className="text-sm text-[#1a2e1a] whitespace-pre-wrap">{m.text}</p>
+                <p className="text-sm text-[#1a2e1a] whitespace-pre-wrap break-words">{m.text}</p>
               </div>
             ))}
           </div>
@@ -406,9 +406,11 @@ function VisitsTab({ visits }) {
     <div className="space-y-3">
       {visits.map((v) => (
         <div key={v._id} className="border border-[#eef5ec] rounded-xl p-4 bg-[#fafffa]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-[#1a2e1a]">{v.property?.title || v.propertyTitle || 'Property'}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <span className="text-sm font-medium text-[#1a2e1a] break-words">
+              {v.property?.title || v.propertyTitle || 'Property'}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
               v.status === 'completed' ? 'bg-[#e8f5e6] text-[#2d7a3a]'
               : v.status === 'scheduled' ? 'bg-[#e6f0fb] text-[#2a6ba8]'
               : v.status === 'rescheduled' ? 'bg-[#f3e8ff] text-[#7a3aa8]'
@@ -416,7 +418,7 @@ function VisitsTab({ visits }) {
               : 'bg-[#fef7e0] text-[#b68b40]'
             }`}>{v.status}</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <Detail label="Date" value={v.scheduledDate ? new Date(v.scheduledDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'} />
             <Detail label="Time" value={v.scheduledTime || '—'} />
             <Detail label="Preferred (raw)" value={v.rawPreferredDateTime || '—'} />
@@ -430,18 +432,18 @@ function VisitsTab({ visits }) {
 
 function Detail({ label, value }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[10px] font-medium text-[#6a7f6a] uppercase tracking-wider">{label}</p>
-      <p className="text-sm text-[#1a2e1a] mt-0.5">{value || '—'}</p>
+      <p className="text-sm text-[#1a2e1a] mt-0.5 break-words">{value || '—'}</p>
     </div>
   );
 }
 
 function SmallStat({ label, value }) {
   return (
-    <div className="bg-[#fafffa] border border-[#eef5ec] rounded-xl p-3">
+    <div className="bg-[#fafffa] border border-[#eef5ec] rounded-xl p-3 min-w-0">
       <p className="text-[10px] font-medium text-[#6a7f6a] uppercase tracking-wider mb-1">{label}</p>
-      <div className="text-sm font-medium text-[#1a2e1a]">{value}</div>
+      <div className="text-sm font-medium text-[#1a2e1a] break-words">{value}</div>
     </div>
   );
 }

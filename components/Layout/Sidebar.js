@@ -1,7 +1,6 @@
 "use client";
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import {
   LayoutDashboard,
@@ -18,20 +17,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth/useAuth';
 
-export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
+export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isOwner } = useAuth();
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   const menuItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -72,18 +61,14 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
         />
       )}
 
-      {/* Sidebar wrapper */}
+   
       <aside
         className={`
           flex flex-col flex-shrink-0
           bg-[#092b1f] border-r border-[#092b1f] shadow-xl
           transition-all duration-300
-
-          /* Mobile — fixed slide-over drawer */
           fixed top-0 left-0 z-50 w-72 h-screen
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-
-          /* Desktop — sticky flex child in the layout */
           md:sticky md:top-0 md:translate-x-0 md:z-auto md:h-screen
           ${isSidebarOpen ? 'md:w-72' : 'md:w-20'}
         `}

@@ -1,12 +1,9 @@
 "use client";
 import { useAuth } from '@/lib/auth/useAuth';
-
-// at top of component:
-
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import {
-  Search, Plus, Pencil, Trash2, X,
+  Search, Pencil, Trash2, X,
   Users, Shield, UserPlus, Eye, EyeOff,
 } from 'lucide-react';
 
@@ -26,16 +23,15 @@ const ROLE_LABELS = {
 };
 
 export default function ManageTeamPage() {
-    const { isOwner } = useAuth();
+  const { isOwner } = useAuth();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
 
-  // Modal state
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState(null); // null = create, object = edit
+  const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({
     name: '',
     role: 'channel_partner',
@@ -44,11 +40,8 @@ export default function ManageTeamPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  // Row-level password visibility
   const [visiblePasswords, setVisiblePasswords] = useState({});
 
-  // ---------- Fetch ----------
   const fetchMembers = useCallback(async () => {
     try {
       setLoading(true);
@@ -74,7 +67,6 @@ export default function ManageTeamPage() {
     fetchMembers();
   }, [fetchMembers]);
 
-  // ---------- Modal handlers ----------
   const openCreate = () => {
     setEditing(null);
     setForm({ name: '', role: 'channel_partner', username: '', password: '' });
@@ -109,9 +101,7 @@ export default function ManageTeamPage() {
 
     setSaving(true);
     try {
-      const url = editing
-        ? `/api/team-members/${editing._id}`
-        : '/api/team-members';
+      const url = editing ? `/api/team-members/${editing._id}` : '/api/team-members';
       const method = editing ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
@@ -155,15 +145,14 @@ export default function ManageTeamPage() {
     setVisiblePasswords((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // ---------- Render ----------
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
       {/* Header */}
-      <div className="mb-6 mt-14 md:mt-0">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 justify-between">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
-              <span className="w-2 h-8 bg-[#2d7a3a] rounded-full mr-2" />
+      <div className="mb-6 mt-16 md:mt-0">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
+              <span className="w-2 h-7 sm:h-8 bg-[#2d7a3a] rounded-full mr-2 flex-shrink-0" />
               Manage Team
             </h1>
             <p className="text-sm text-[#4f6b4f] mt-1 ml-4">
@@ -172,7 +161,7 @@ export default function ManageTeamPage() {
           </div>
           <button
             onClick={openCreate}
-            className="inline-flex items-center justify-center gap-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md self-start lg:self-center"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md"
           >
             <UserPlus className="w-4 h-4" />
             Add Team Member
@@ -180,8 +169,8 @@ export default function ManageTeamPage() {
         </div>
       </div>
 
-      {/* Search bar */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 mb-6 shadow-sm">
+      {/* Search */}
+      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-3 sm:p-4 mb-6 shadow-sm">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6a7f6a]" />
           <input
@@ -194,9 +183,10 @@ export default function ManageTeamPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table Card */}
       <div className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[800px]">
             <thead>
               <tr className="bg-[#fafffa]">
@@ -253,11 +243,7 @@ export default function ManageTeamPage() {
                           className="text-[#6a7f6a] hover:text-[#2d7a3a] transition-colors"
                           title={visiblePasswords[m._id] ? 'Hide password' : 'Show password'}
                         >
-                          {visiblePasswords[m._id] ? (
-                            <EyeOff className="w-3.5 h-3.5" />
-                          ) : (
-                            <Eye className="w-3.5 h-3.5" />
-                          )}
+                          {visiblePasswords[m._id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
                       </div>
                     </td>
@@ -270,14 +256,15 @@ export default function ManageTeamPage() {
                         >
                           <Pencil className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#2d7a3a]" />
                         </button>
-                        { isOwner && (
-                        <button
-                          onClick={() => handleDelete(m)}
-                          title="Delete"
-                          className="p-1.5 rounded-lg border border-[#e8f0e6] hover:bg-[#fde8e8] hover:border-[#c0392b] transition-colors group"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#c0392b]" />
-                        </button> )}
+                        {isOwner && (
+                          <button
+                            onClick={() => handleDelete(m)}
+                            title="Delete"
+                            className="p-1.5 rounded-lg border border-[#e8f0e6] hover:bg-[#fde8e8] hover:border-[#c0392b] transition-colors group"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#c0392b]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -287,8 +274,76 @@ export default function ManageTeamPage() {
           </table>
         </div>
 
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-[#eef5ec]">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="w-8 h-8 border-3 border-[#2d7a3a] border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm text-[#6a7f6a] mt-3">Loading team members...</p>
+            </div>
+          ) : members.length === 0 ? (
+            <div className="text-center py-12 text-[#6a7f6a] text-sm px-4">
+              <Users className="w-5 h-5 inline-block mr-2 mb-0.5" />
+              No team members yet
+            </div>
+          ) : (
+            members.map((m) => (
+              <div key={m._id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-semibold text-[#1a2e1a] break-words">{m.name}</p>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-medium rounded-full flex-shrink-0 ${ROLE_TONES[m.role] || ROLE_TONES.channel_partner}`}>
+                    <Shield className="w-3 h-3" />
+                    {ROLE_LABELS[m.role] || m.role}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[#6a7f6a] uppercase tracking-wider text-[10px] flex-shrink-0">Username</span>
+                    <code className="font-mono text-[#4f6b4f] bg-[#f0f7ef] px-2 py-0.5 rounded text-[11px] truncate max-w-[65%]">
+                      {m.username}
+                    </code>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[#6a7f6a] uppercase tracking-wider text-[10px] flex-shrink-0">Password</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code className="font-mono text-[#4f6b4f] bg-[#f0f7ef] px-2 py-0.5 rounded text-[11px] truncate max-w-[130px]">
+                        {visiblePasswords[m._id] ? m.password : '••••••'}
+                      </code>
+                      <button
+                        onClick={() => togglePasswordVisibility(m._id)}
+                        className="text-[#6a7f6a] flex-shrink-0"
+                      >
+                        {visiblePasswords[m._id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-[#eef5ec]">
+                  <button
+                    onClick={() => openEdit(m)}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-[#2d7a3a] bg-[#e8f5e6] rounded-lg"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                  {isOwner && (
+                    <button
+                      onClick={() => handleDelete(m)}
+                      className="p-2 text-[#c0392b] bg-[#fde8e8] rounded-lg"
+                      aria-label="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
         {pagination.pages > 1 && (
-          <div className="px-5 py-4 border-t border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between">
+          <div className="px-3 sm:px-5 py-4 border-t border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between gap-2">
             <span className="text-xs text-[#6a7f6a]">Page {page} of {pagination.pages}</span>
             <div className="flex gap-2">
               <button
@@ -310,20 +365,19 @@ export default function ManageTeamPage() {
         )}
       </div>
 
-      {/* Add / Edit Modal */}
+      {/* Modal */}
       {modalOpen && (
-       <div
-    className="fixed inset-0 z-50 flex items-center justify-center p-4"
-    style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)' }}
-    onClick={closeModal}
-  >
-    <div
-      className="bg-white rounded-2xl shadow-xl mx-auto"
-      style={{ width: '100%', maxWidth: '440px' }}
-      onClick={(e) => e.stopPropagation()}
-    >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e8f0e6] bg-[#fafffa] rounded-t-2xl">
-              <div>
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)' }}
+          onClick={closeModal}
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-[440px] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e8f0e6] bg-[#fafffa] rounded-t-2xl sticky top-0 z-10">
+              <div className="min-w-0">
                 <h2 className="text-base font-semibold text-[#1a2e1a]">
                   {editing ? 'Edit Team Member' : 'Add Team Member'}
                 </h2>
@@ -331,7 +385,7 @@ export default function ManageTeamPage() {
                   {editing ? 'Update login credentials and role' : 'Create a new login account'}
                 </p>
               </div>
-              <button onClick={closeModal} className="text-[#6a7f6a] hover:text-[#1a2e1a]">
+              <button onClick={closeModal} className="text-[#6a7f6a] hover:text-[#1a2e1a] flex-shrink-0 p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -385,7 +439,6 @@ export default function ManageTeamPage() {
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#6a7f6a] hover:text-[#2d7a3a]"
-                    title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -393,17 +446,17 @@ export default function ManageTeamPage() {
               </Field>
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[#e8f0e6]">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-5 py-4 border-t border-[#e8f0e6]">
               <button
                 onClick={closeModal}
-                className="px-4 py-2 text-sm text-[#4f6b4f] hover:bg-[#f0f7ef] rounded-xl transition-colors"
+                className="w-full sm:w-auto px-4 py-2 text-sm text-[#4f6b4f] hover:bg-[#f0f7ef] rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60"
+                className="w-full sm:w-auto px-4 py-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60"
               >
                 {saving ? 'Saving…' : editing ? 'Update' : 'Add Member'}
               </button>

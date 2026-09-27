@@ -1,8 +1,5 @@
 "use client";
 import { useAuth } from '@/lib/auth/useAuth';
-
-// at top of component:
-
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -35,12 +32,12 @@ export default function SiteVisitsPage() {
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [activePartners, setActivePartners] = useState([]);
 
   const fetchStats = async () => {
     try {
       const res = await fetch('/api/site-visits/stats');
       const json = await res.json();
-      console.log('[site-visits] stats response:', json);
       if (json.success) setStats(json.data);
       else console.warn('[site-visits] stats API returned failure:', json);
     } catch (err) {
@@ -73,24 +70,25 @@ export default function SiteVisitsPage() {
     }
   };
 
-  useEffect(() => { fetchStats(); }, []);
-  useEffect(() => { fetchVisits(); /* eslint-disable-next-line */ }, [activeStatus, page]);
-  const [activePartners, setActivePartners] = useState([]);
+  const fetchActivePartners = async () => {
+    try {
+      const res = await fetch('/api/team-members?role=channel_partner&active=true&limit=500');
+      const json = await res.json();
+      if (json.success) setActivePartners(Array.isArray(json.data) ? json.data : []);
+    } catch (err) {
+      console.error('Failed to fetch partners', err);
+    }
+  };
 
-const fetchActivePartners = async () => {
-  try {
-    const res = await fetch('/api/team-members?role=channel_partner&active=true&limit=500');
-    const json = await res.json();
-    if (json.success) setActivePartners(Array.isArray(json.data) ? json.data : []);
-  } catch (err) {
-    console.error('Failed to fetch partners', err);
-  }
-};
+  useEffect(() => {
+    fetchStats();
+    fetchActivePartners();
+  }, []);
 
-useEffect(() => {
-  fetchStats();
-  fetchActivePartners();
-}, []);
+  useEffect(() => {
+    fetchVisits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStatus, page]);
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this site visit?')) return;
@@ -141,14 +139,26 @@ useEffect(() => {
     }
   };
 
+  const renderDateCell = (v) => {
+    if (v.rawPreferredDateTime) return v.rawPreferredDateTime;
+    if (v.scheduledDate)
+      return new Date(v.scheduledDate).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    return 'N/A';
+  };
+
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
       {/* Page Header */}
-      <div className="mb-6 mt-14 md:mt-0">
+      <div className="mb-6 mt-16 md:mt-0">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
-              <span className="w-2 h-8 bg-[#2d7a3a] rounded-full mr-2" />
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
+              <span className="w-2 h-7 sm:h-8 bg-[#2d7a3a] rounded-full mr-2 flex-shrink-0" />
               Site Visit Management
             </h1>
             <p className="text-sm text-[#4f6b4f] mt-1 ml-4">
@@ -162,46 +172,31 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* 3 KPI Cards — inline grid so they NEVER stack full-width */}
+      {/* KPI Cards */}
       <div
         className="mb-6"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: '0.75rem',
         }}
       >
-        <KpiCard
-          icon={Calendar}
-          label="Today's Site Visits"
-          value={stats.today}
-          tone="blue"
-        />
-        <KpiCard
-          icon={Clock}
-          label="Pending Site Visits"
-          value={stats.pending}
-          tone="amber"
-        />
-        <KpiCard
-          icon={CheckCircle}
-          label="Completed Site Visits"
-          value={stats.completed}
-          tone="green"
-        />
+        <KpiCard icon={Calendar} label="Today's Site Visits" value={stats.today} tone="blue" />
+        <KpiCard icon={Clock} label="Pending Site Visits" value={stats.pending} tone="amber" />
+        <KpiCard icon={CheckCircle} label="Completed Site Visits" value={stats.completed} tone="green" />
       </div>
 
       {/* Tabs + Search */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 mb-6 shadow-sm">
+      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-3 sm:p-4 mb-6 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-          <div className="flex gap-1 overflow-x-auto pb-1 lg:pb-0">
+          <div className="flex gap-1 overflow-x-auto pb-1 lg:pb-0 -mx-1 px-1">
             {STATUS_TABS.map(({ value, label, icon: Icon }) => {
               const isActive = activeStatus === value;
               return (
                 <button
                   key={value}
                   onClick={() => { setActiveStatus(value); setPage(1); }}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+                  className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${
                     isActive
                       ? 'bg-[#2d7a3a] text-white shadow-sm'
                       : 'text-[#4f6b4f] hover:bg-[#f0f7ef]'
@@ -230,9 +225,10 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table Card */}
       <div className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        {/* ---------- Desktop table ---------- */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[1000px]">
             <thead>
               <tr className="bg-[#fafffa]">
@@ -263,10 +259,7 @@ useEffect(() => {
                 </tr>
               ) : (
                 visits.map((v) => (
-                  <tr
-                    key={v._id}
-                    className="border-t border-[#eef5ec] hover:bg-[#fafffa] transition-colors"
-                  >
+                  <tr key={v._id} className="border-t border-[#eef5ec] hover:bg-[#fafffa] transition-colors">
                     <td className="px-5 py-3">
                       <p className="text-sm font-medium text-[#1a2e1a]">{v.leadName || 'Unknown'}</p>
                       <p className="text-xs text-[#6a7f6a] flex items-center gap-1 mt-0.5">
@@ -280,26 +273,11 @@ useEffect(() => {
                       )}
                     </td>
                     <td className="px-5 py-3">
-                      {v.rawPreferredDateTime ? (
-                        <>
-                          <p className="text-sm text-[#4f6b4f]">{v.rawPreferredDateTime}</p>
-                         
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-sm text-[#4f6b4f]">
-                            {v.scheduledDate
-                              ? new Date(v.scheduledDate).toLocaleDateString('en-US', {
-                                  weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-                                })
-                              : 'N/A'}
-                          </p>
-                          {v.scheduledTime && (
-                            <p className="text-xs text-[#6a7f6a] flex items-center gap-1 mt-0.5">
-                              <Clock className="w-3 h-3" /> {v.scheduledTime}
-                            </p>
-                          )}
-                        </>
+                      <p className="text-sm text-[#4f6b4f]">{renderDateCell(v)}</p>
+                      {!v.rawPreferredDateTime && v.scheduledTime && (
+                        <p className="text-xs text-[#6a7f6a] flex items-center gap-1 mt-0.5">
+                          <Clock className="w-3 h-3" /> {v.scheduledTime}
+                        </p>
                       )}
                     </td>
                     <td className="px-5 py-3">
@@ -322,14 +300,15 @@ useEffect(() => {
                         >
                           <Pencil className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#2d7a3a]" />
                         </button>
-                        { isOwner && (
-                        <button
-                          onClick={() => handleDelete(v._id)}
-                          title="Delete"
-                          className="p-1.5 rounded-lg border border-[#e8f0e6] hover:bg-[#fde8e8] hover:border-[#c0392b] transition-colors group"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#c0392b]" />
-                        </button> )}
+                        {isOwner && (
+                          <button
+                            onClick={() => handleDelete(v._id)}
+                            title="Delete"
+                            className="p-1.5 rounded-lg border border-[#e8f0e6] hover:bg-[#fde8e8] hover:border-[#c0392b] transition-colors group"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#c0392b]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -339,9 +318,84 @@ useEffect(() => {
           </table>
         </div>
 
+        {/* ---------- Mobile cards ---------- */}
+        <div className="md:hidden divide-y divide-[#eef5ec]">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="w-8 h-8 border-3 border-[#2d7a3a] border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm text-[#6a7f6a] mt-3">Loading site visits...</p>
+            </div>
+          ) : visits.length === 0 ? (
+            <div className="text-center py-12 text-[#6a7f6a] text-sm">
+              <FolderOpen className="w-5 h-5 inline-block mr-2 mb-0.5" />
+              No site visits found
+            </div>
+          ) : (
+            visits.map((v) => (
+              <div key={v._id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1a2e1a] truncate">
+                      {v.leadName || 'Unknown'}
+                    </p>
+                    <p className="text-xs text-[#6a7f6a] flex items-center gap-1 mt-0.5">
+                      <Phone className="w-3 h-3" /> {v.leadPhone || '—'}
+                    </p>
+                  </div>
+                  <StatusBadge status={v.status} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="text-[#6a7f6a] uppercase tracking-wider text-[10px]">Property</p>
+                    <p className="text-[#1a2e1a] mt-0.5 truncate">{v.propertyTitle || 'N/A'}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[#6a7f6a] uppercase tracking-wider text-[10px]">Date</p>
+                    <p className="text-[#1a2e1a] mt-0.5 truncate">{renderDateCell(v)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[#6a7f6a] uppercase tracking-wider text-[10px]">Partner</p>
+                    <p className="text-[#1a2e1a] mt-0.5 truncate">
+                      {v.channelPartnerName || 'Not assigned'}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[#6a7f6a] uppercase tracking-wider text-[10px]">Time</p>
+                    <p className="text-[#1a2e1a] mt-0.5 truncate">{v.scheduledTime || '—'}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-[#eef5ec]">
+                  <button
+                    onClick={() =>
+                      setEditing({ ...v, scheduledDate: v.scheduledDate?.slice(0, 10) })
+                    }
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-[#2d7a3a] bg-[#e8f5e6] rounded-lg"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                  {isOwner && (
+                    <button
+                      onClick={() => handleDelete(v._id)}
+                      className="p-2 text-[#c0392b] bg-[#fde8e8] rounded-lg"
+                      aria-label="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Pagination */}
         {pagination.pages > 1 && (
-          <div className="px-5 py-4 border-t border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between">
-            <span className="text-xs text-[#6a7f6a]">Page {page} of {pagination.pages}</span>
+          <div className="px-3 sm:px-5 py-4 border-t border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between gap-2">
+            <span className="text-xs text-[#6a7f6a]">
+              Page {page} of {pagination.pages}
+            </span>
             <div className="flex gap-2">
               <button
                 disabled={page <= 1}
@@ -362,25 +416,26 @@ useEffect(() => {
         )}
       </div>
 
-      {/* Edit Modal */}
+      {/* Edit Modal — bottom sheet on mobile */}
       {editing && (
         <div
-    className="fixed inset-0 z-50 flex items-center justify-center p-4"
-    style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)' }}
-    onClick={() => setEditing(null)}
-  >
-           <div
-      className="bg-white rounded-2xl shadow-xl mx-auto"
-      style={{ width: '100%', maxWidth: '480px' }}
-      onClick={(e) => e.stopPropagation()}
-    >
-            <div className="px-6 py-4 border-b border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between rounded-t-2xl">
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setEditing(null)}
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-[480px] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 sm:px-6 py-4 border-b border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between rounded-t-2xl sticky top-0 z-10">
               <h3 className="text-base font-semibold text-[#1a2e1a]">Edit Site Visit</h3>
-              <button onClick={() => setEditing(null)} className="text-[#6a7f6a] hover:text-[#1a2e1a]">✕</button>
+              <button onClick={() => setEditing(null)} className="text-[#6a7f6a] hover:text-[#1a2e1a] text-xl leading-none px-2">
+                ✕
+              </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Date">
                   <input
                     type="date"
@@ -399,20 +454,22 @@ useEffect(() => {
                   />
                 </Field>
               </div>
+
               <Field label="Channel Partner">
-  <select
-    value={editing.channelPartnerName || ''}
-    onChange={(e) => setEditing((p) => ({ ...p, channelPartnerName: e.target.value }))}
-    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
-  >
-    <option value="">— Not assigned —</option>
-    {activePartners.map((p) => (
-      <option key={p._id} value={p.name}>
-         {p.name}{p.phone ? ` — ${p.phone}` : ''}
-      </option>
-    ))}
-  </select>
-</Field>
+                <select
+                  value={editing.channelPartnerName || ''}
+                  onChange={(e) => setEditing((p) => ({ ...p, channelPartnerName: e.target.value }))}
+                  className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                >
+                  <option value="">— Not assigned —</option>
+                  {activePartners.map((p) => (
+                    <option key={p._id} value={p.name}>
+                      {p.name}{p.phone ? ` — ${p.phone}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
               <Field label="Status">
                 <select
                   value={editing.status}
@@ -426,6 +483,7 @@ useEffect(() => {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </Field>
+
               <Field label="Notes">
                 <textarea
                   rows={3}
@@ -436,17 +494,17 @@ useEffect(() => {
               </Field>
             </div>
 
-            <div className="px-6 py-4 border-t border-[#e8f0e6] flex justify-end gap-2">
+            <div className="px-5 sm:px-6 py-4 border-t border-[#e8f0e6] flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
               <button
                 onClick={() => setEditing(null)}
-                className="px-4 py-2 text-sm text-[#4f6b4f] hover:bg-[#f0f7ef] rounded-xl transition-colors"
+                className="w-full sm:w-auto px-4 py-2 text-sm text-[#4f6b4f] hover:bg-[#f0f7ef] rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className="px-4 py-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60"
+                className="w-full sm:w-auto px-4 py-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
@@ -469,14 +527,14 @@ function KpiCard({ icon: Icon, label, value, tone }) {
   const t = tones[tone] || tones.green;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#e8f0e6] p-5 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-4">
-        <div className={`w-11 h-11 ${t.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-          <Icon className={`w-5 h-5 ${t.fg}`} />
+    <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className={`w-10 h-10 sm:w-11 sm:h-11 ${t.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+          <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${t.fg}`} />
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-medium text-[#6a7f6a] uppercase tracking-wider truncate">{label}</p>
-          <p className="text-2xl font-bold text-[#1a2e1a] leading-tight mt-0.5">{value}</p>
+          <p className="text-[10px] sm:text-xs font-medium text-[#6a7f6a] uppercase tracking-wider truncate">{label}</p>
+          <p className="text-xl sm:text-2xl font-bold text-[#1a2e1a] leading-tight mt-0.5">{value}</p>
         </div>
       </div>
     </div>
@@ -493,7 +551,7 @@ function StatusBadge({ status }) {
   };
   const s = map[status] || map.pending;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${s.bg} ${s.text}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {s.label}
     </span>

@@ -1,21 +1,11 @@
-// app/properties/verify/page.js
 'use client';
-
 import { useAuth } from '@/lib/auth/useAuth';
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import {
-  ShieldCheck,
-  MapPin,
-  IndianRupee,
-  Home,
-  Image as ImageIcon,
-  Check,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
+  ShieldCheck, MapPin, Home, Image as ImageIcon,
+  Check, X, ChevronLeft, ChevronRight, Loader2, Phone,
 } from 'lucide-react';
 
 const SUBTYPE_LABEL = {
@@ -42,14 +32,11 @@ export default function VerifyPropertiesPage() {
 
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actingOn, setActingOn] = useState(null); // property._id currently being approved/rejected
+  const [actingOn, setActingOn] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
   const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    limit: 12,
-    pages: 0,
+    total: 0, page: 1, limit: 12, pages: 0,
   });
 
   const fetchPending = useCallback(async () => {
@@ -130,9 +117,7 @@ export default function VerifyPropertiesPage() {
   const formatPrice = (price, propertyType) => {
     const n = Number(price) || 0;
     const formatted = new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
+      style: 'currency', currency: 'INR', maximumFractionDigits: 0,
     }).format(n);
     return propertyType === 'rent' || propertyType === 'commercial_rent'
       ? `${formatted}/mo`
@@ -142,7 +127,6 @@ export default function VerifyPropertiesPage() {
   const getSubTypeLabel = (subType) =>
     subType ? SUBTYPE_LABEL[subType] || subType : 'Property';
 
-  // ---------- Auth guard ----------
   if (authLoading) {
     return (
       <div className="p-6 md:p-8 flex items-center justify-center min-h-[60vh]">
@@ -154,7 +138,7 @@ export default function VerifyPropertiesPage() {
   if (!isOwner) {
     return (
       <div className="p-4 md:p-6 min-h-screen bg-[#f8faf7]">
-        <div className="max-w-md mx-auto mt-24 bg-white rounded-2xl border border-[#e8f0e6] shadow-sm p-8 text-center">
+        <div className="max-w-md mx-auto mt-24 bg-white rounded-2xl border border-[#e8f0e6] shadow-sm p-6 sm:p-8 text-center">
           <div className="w-16 h-16 bg-[#fde8e8] rounded-full flex items-center justify-center mx-auto mb-4">
             <ShieldCheck className="w-8 h-8 text-[#c0392b]" />
           </div>
@@ -173,10 +157,8 @@ export default function VerifyPropertiesPage() {
     );
   }
 
-  // ---------- Render ----------
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
-      {/* Image preview */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-[#1a2e1a]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -190,7 +172,6 @@ export default function VerifyPropertiesPage() {
             >
               <X className="w-8 h-8" />
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={selectedImage}
               alt="Property"
@@ -201,25 +182,24 @@ export default function VerifyPropertiesPage() {
       )}
 
       {/* Header */}
-      <div className="mb-6 mt-14 md:mt-0">
+      <div className="mb-6 mt-16 md:mt-0">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
-              <span className="w-2 h-8 bg-[#2d7a3a] rounded-full mr-2" />
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
+              <span className="w-2 h-7 sm:h-8 bg-[#2d7a3a] rounded-full mr-2 flex-shrink-0" />
               Property Verification
             </h1>
             <p className="text-sm text-[#4f6b4f] mt-1 ml-4">
               Review properties submitted by channel partners and WhatsApp users before they go live.
             </p>
           </div>
-          <div className="inline-flex items-center gap-2 px-3 py-2 bg-[#e8f5e6] border border-[#c9e5c3] rounded-xl text-sm text-[#2d7a3a] font-medium">
+          <div className="inline-flex items-center gap-2 px-3 py-2 bg-[#e8f5e6] border border-[#c9e5c3] rounded-xl text-sm text-[#2d7a3a] font-medium flex-shrink-0">
             <ShieldCheck className="w-4 h-4" />
             {pagination.total} pending
           </div>
         </div>
       </div>
 
-      {/* Content */}
       {loading ? (
         <div className="bg-white rounded-2xl border border-[#e8f0e6] shadow-sm p-12 text-center">
           <div className="flex flex-col items-center gap-3">
@@ -232,15 +212,13 @@ export default function VerifyPropertiesPage() {
           <div className="w-20 h-20 bg-[#f0f7ef] rounded-full flex items-center justify-center mx-auto mb-4">
             <ShieldCheck className="w-10 h-10 text-[#2d7a3a]" />
           </div>
-          <h3 className="text-lg font-medium text-[#1a2e1a] mb-2">
-            All caught up!
-          </h3>
+          <h3 className="text-lg font-medium text-[#1a2e1a] mb-2">All caught up!</h3>
           <p className="text-sm text-[#6a7f6a]">
             There are no properties waiting for verification right now.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 items-stretch">
           {properties.map((property) => {
             const allFeatures = Array.isArray(property.features) ? property.features : [];
             const features = allFeatures.slice(0, 3);
@@ -248,7 +226,6 @@ export default function VerifyPropertiesPage() {
             const showImage = property.imageUrl && !imageErrors[property._id];
             const isActing = actingOn === property._id;
 
-            const IMAGE_HEIGHT = 260;
             const TITLE_MIN_HEIGHT = 44;
             const FEATURES_MIN_HEIGHT = 26;
 
@@ -257,13 +234,8 @@ export default function VerifyPropertiesPage() {
                 key={property._id}
                 className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col h-full"
               >
-                {/* Image */}
-                <div
-                  className="relative bg-[#f0f7ef] overflow-hidden flex-shrink-0"
-                  style={{ height: `${IMAGE_HEIGHT}px`, width: '100%' }}
-                >
+                <div className="relative bg-[#f0f7ef] overflow-hidden flex-shrink-0 h-52 sm:h-60 md:h-[260px] w-full">
                   {showImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={property.imageUrl}
                       alt={property.title || 'Property'}
@@ -292,7 +264,6 @@ export default function VerifyPropertiesPage() {
                   )}
                 </div>
 
-                {/* Content */}
                 <div className="p-3 flex-1 flex flex-col">
                   <p className="text-[10px] text-[#6a7f6a] uppercase tracking-wide font-medium mb-0.5 truncate">
                     {property.source === 'whatsapp_bot'
@@ -334,7 +305,6 @@ export default function VerifyPropertiesPage() {
                     )}
                   </div>
 
-                  {/* Owner / submitter info */}
                   {(property.ownerName || property.ownerPhone) && (
                     <div className="text-[11px] text-[#4f6b4f] mb-2 truncate">
                       {property.ownerName ? (
@@ -345,7 +315,6 @@ export default function VerifyPropertiesPage() {
                     </div>
                   )}
 
-                  {/* Features */}
                   <div
                     className="flex flex-wrap gap-1 mb-2 overflow-hidden"
                     style={{ minHeight: `${FEATURES_MIN_HEIGHT}px`, maxHeight: `${FEATURES_MIN_HEIGHT}px` }}
@@ -371,7 +340,6 @@ export default function VerifyPropertiesPage() {
                     )}
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-1.5 pt-2 mt-auto border-t border-[#eef5ec]">
                     <button
                       onClick={() => handleDecision(property, 'reject')}
@@ -397,10 +365,9 @@ export default function VerifyPropertiesPage() {
         </div>
       )}
 
-      {/* Pagination */}
       {pagination.pages > 1 && (
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-[#e8f0e6] px-4 py-3 shadow-sm">
-          <div className="text-sm text-[#6a7f6a]">
+          <div className="text-xs sm:text-sm text-[#6a7f6a] text-center sm:text-left">
             Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
             {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
             {pagination.total} pending properties
