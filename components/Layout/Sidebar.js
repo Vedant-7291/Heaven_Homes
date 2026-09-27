@@ -89,36 +89,37 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar }) {
         `}
       >
         {/* Header with Logo */}
-        <div className="pt-7 pb-4 px-4 border-b-2 border-gray-600 flex-shrink-0">
-          {isSidebarOpen ? (
-            <div className="flex flex-col">
-              <div className="flex items-center space-x-3.5">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="../../../logo-heaven.png"
-                  alt="Heaven Homes"
-                  className="w-12 h-12 object-contain flex-shrink-0 border border-white/20 rounded-lg"
-                />
-                <div>
-                  <span className="text-white font-bold text-xl tracking-wide">
-                    Heaven Homes
-                  </span>
-                </div>
-              </div>
-              <p className="text-white/60 text-xs mt-2 ml-14 font-light tracking-wider">
-                Give your dreams a new address
-              </p>
-            </div>
-          ) : (
-            <div className="flex justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="../../../logo-heaven.png"
-                alt="Heaven Homes"
-                className="w-11 h-11 object-contain"
-              />
-            </div>
-          )}
+        <div className="py-6 px-4 border-b-2 border-gray-600 flex-shrink-0">
+       {isSidebarOpen ? (
+  <div className="flex items-center gap-3.5">
+    {/* Logo — sized to match the head+subhead block on the right */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      src="../../../logo-heaven.png"
+      alt="Heaven Homes"
+      className="w-14 h-14 object-contain flex-shrink-0 border border-white/20 rounded-lg"
+    />
+
+    {/* Head + subhead stacked vertically */}
+    <div className="flex flex-col justify-center min-w-0">
+      <span className="text-white font-bold text-xl tracking-wide leading-tight">
+        Heaven Homes
+      </span>
+      <span className="text-white/60 text-[11px] font-light tracking-wider leading-tight mt-1">
+        Give your dreams a new address
+      </span>
+    </div>
+  </div>
+) : (
+  <div className="flex justify-center">
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img
+      src="../../../logo-heaven.png"
+      alt="Heaven Homes"
+      className="w-11 h-11 object-contain"
+    />
+  </div>
+)}
         </div>
 
         {/* Workspace Title */}

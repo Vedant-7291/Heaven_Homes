@@ -20,7 +20,9 @@ import { saveWhatsAppImageToCloudinary } from '@/lib/cloudinary';
  * ============================================================================
  *
  *  Duplicate-message prevention strategy:
- *   1. In-memory `processingPhones` set — fast path, per-instance.
+ *   1. In-memory per-phone queue (`phoneQueues`) — serializes messages for
+ *      the same phone within one instance so concurrent webhook deliveries
+ *      can't race on the same Lead document; it no longer drops messages.
  *   2. Atomic DB guard on `lastIncomingMessageId` — authoritative, survives
  *      Meta retries and cross-instance concurrency.
  *
@@ -246,36 +248,57 @@ async function sendImageWithCaption(to, imageUrl, caption) {
   });
 }
 
-function parseIncomingMessage(body) {
-  try {
-    const value = body?.entry?.[0]?.changes?.[0]?.value;
-    const message = value?.messages?.[0];
-    if (!message) return null;
-    const from = message.from;
-    const wamid = message.id || '';
+function parseOneMessage(message) {
+  const from = message.from;
+  const wamid = message.id || '';
 
-    if (message.type === 'text') {
-      return { from, wamid, type: 'text', text: message.text?.body?.trim() || '' };
+  if (message.type === 'text') {
+    return { from, wamid, type: 'text', text: message.text?.body?.trim() || '' };
+  }
+  if (message.type === 'interactive') {
+    const chosen =
+      message.interactive?.button_reply || message.interactive?.list_reply;
+    return {
+      from,
+      wamid,
+      type: 'interactive',
+      id: chosen?.id,
+      title: chosen?.title,
+    };
+  }
+  if (message.type === 'image') {
+    return { from, wamid, type: 'image', mediaId: message.image?.id };
+  }
+  return { from, wamid, type: message.type || 'unsupported' };
+}
+
+/**
+ * Meta can (and does) batch more than one message into a single webhook
+ * POST — multiple `entry[]`, multiple `changes[]` per entry, and multiple
+ * `messages[]` per change. The old parser only ever read
+ * entry[0].changes[0].value.messages[0], so any additional messages in the
+ * same delivery were silently dropped. This walks every level and returns
+ * one parsed object per message, in the order Meta sent them.
+ */
+function parseIncomingMessages(body) {
+  const results = [];
+  try {
+    const entries = body?.entry || [];
+    for (const entry of entries) {
+      const changes = entry?.changes || [];
+      for (const change of changes) {
+        const messages = change?.value?.messages || [];
+        for (const message of messages) {
+          if (!message) continue;
+          const parsed = parseOneMessage(message);
+          if (parsed) results.push(parsed);
+        }
+      }
     }
-    if (message.type === 'interactive') {
-      const chosen =
-        message.interactive?.button_reply || message.interactive?.list_reply;
-      return {
-        from,
-        wamid,
-        type: 'interactive',
-        id: chosen?.id,
-        title: chosen?.title,
-      };
-    }
-    if (message.type === 'image') {
-      return { from, wamid, type: 'image', mediaId: message.image?.id };
-    }
-    return { from, wamid, type: message.type || 'unsupported' };
   } catch (err) {
     console.error('[webhook] Failed to parse payload:', err);
-    return null;
   }
+  return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -2466,7 +2489,36 @@ export async function GET(request) {
   return new NextResponse('Forbidden', { status: 403 });
 }
 
-const processingPhones = new Set();
+/**
+ * Per-phone processing queue.
+ *
+ * The old guard used a Set: if a webhook for a phone arrived while a prior
+ * one for that same phone was still being handled, the new one was DROPPED
+ * outright — no processing, no log, no reply. That silently ate real
+ * messages whenever a user sent two messages close together, or whenever
+ * Meta's batched delivery contained more than one message for the same
+ * phone.
+ *
+ * This replaces that with a chain of promises per phone: messages for the
+ * same phone still run one at a time (so two near-simultaneous webhook
+ * calls can't race on the same Lead document), but every message eventually
+ * runs instead of being discarded. Genuine duplicate deliveries (Meta
+ * retries) are still caught by the wamid guard inside handleMessage.
+ */
+const phoneQueues = new Map();
+
+function enqueueForPhone(phone, task) {
+  const prev = phoneQueues.get(phone) || Promise.resolve();
+  const run = prev.then(task, task);
+  const settled = run.catch(() => {});
+  phoneQueues.set(phone, settled);
+  settled.finally(() => {
+    if (phoneQueues.get(phone) === settled) {
+      phoneQueues.delete(phone);
+    }
+  });
+  return run;
+}
 
 export async function POST(request) {
   try {
@@ -2479,19 +2531,18 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const incoming = parseIncomingMessage(body);
-    if (!incoming) return NextResponse.json({ ok: true });
+    const messages = parseIncomingMessages(body);
+    if (messages.length === 0) return NextResponse.json({ ok: true });
 
-    if (processingPhones.has(incoming.from)) {
-      return NextResponse.json({ ok: true });
-    }
+    // Process every message Meta sent in this delivery (there can be more
+    // than one). Different phones run concurrently; messages for the same
+    // phone are serialized via enqueueForPhone, in the order Meta sent them.
+    await Promise.all(
+      messages.map((incoming) =>
+        enqueueForPhone(incoming.from, () => handleMessage(incoming.from, incoming))
+      )
+    );
 
-    processingPhones.add(incoming.from);
-    try {
-      await handleMessage(incoming.from, incoming);
-    } finally {
-      processingPhones.delete(incoming.from);
-    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[webhook] Unhandled error:', err);
