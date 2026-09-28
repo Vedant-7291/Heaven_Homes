@@ -1,6 +1,7 @@
 // app/api/properties/pending/route.js
 import dbConnect, { isDbConnected } from '@/lib/mongodb';
 import Property from '@/lib/models/Property';
+import TeamMember from '@/lib/models/TeamMember'; // ensure model is registered
 import { NextResponse } from 'next/server';
 
 export async function GET(request) {
@@ -18,7 +19,11 @@ export async function GET(request) {
     const query = { status: 'pending' };
 
     const [properties, total] = await Promise.all([
-      Property.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Property.find(query)
+        .populate('uploadedBy', 'name username role')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
       Property.countDocuments(query),
     ]);
 

@@ -26,9 +26,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Lead Management', path: '/leads', icon: Users },
     { name: 'Property Management', path: '/properties', icon: Building2 },
-    ...(isOwner
-      ? [{ name: 'Property Verification', path: '/properties/verify', icon: BadgeCheck }]
-      : []),
+   
     { name: 'Site Visit Management', path: '/site-visits', icon: Calendar },
     { name: 'Rent Out Property Requests', path: '/rent-out', icon: Home },
     { name: 'Lead Assignment', path: '/leads/assign', icon: UserPlus },

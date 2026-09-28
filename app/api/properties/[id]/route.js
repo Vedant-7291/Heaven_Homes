@@ -21,6 +21,7 @@ const ALLOWED_UPDATE_FIELDS = [
   'imageUrl', 'imagePublicId', 'images', 'ownerPhone', 'ownerName', 'source',
   'dimensions', 'facing', 'floor', 'monthlyRent', 'securityDeposit',
   'setupType', 'availableFrom', 'categoryTab',
+  'brokerage', 'brokerageAmount',
 ];
 
 function isValidObjectId(id) {

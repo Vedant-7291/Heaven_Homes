@@ -1,11 +1,10 @@
 "use client";
 import { useAuth } from '@/lib/auth/useAuth';
 
-// at top of component:
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import PropertyModal from '@/components/Properties/PropertyModal';
+import VerifyPropertiesDrawer from '@/components/Properties/VerifyPropertiesDrawer';
 import {
   Search,
   Plus,
@@ -18,6 +17,10 @@ import {
   Home,
   Image as ImageIcon,
   IndianRupee,
+  ShieldCheck,
+  Loader2,
+  Check,
+  Phone,
 } from 'lucide-react';
 
 const CATEGORY_OPTIONS = [
@@ -76,7 +79,12 @@ export default function PropertiesPage() {
     pages: 0,
   });
 
-  // ---------- Fetch ----------
+  // ---- Verify drawer state ----
+  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingCountLoading, setPendingCountLoading] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+
+  // ---------- Fetch properties ----------
   const fetchProperties = useCallback(async () => {
     try {
       setLoading(true);
@@ -126,6 +134,25 @@ export default function PropertiesPage() {
   useEffect(() => {
     fetchProperties();
   }, [fetchProperties]);
+
+  // ---------- Fetch pending count (only for owners) ----------
+  const fetchPendingCount = useCallback(async () => {
+    if (!isOwner) return;
+    try {
+      setPendingCountLoading(true);
+      const res = await fetch('/api/properties/pending?limit=1');
+      const data = await res.json();
+      if (data.success) setPendingCount(data.pagination?.total ?? 0);
+    } catch (err) {
+      console.error('[properties] pending count error', err);
+    } finally {
+      setPendingCountLoading(false);
+    }
+  }, [isOwner]);
+
+  useEffect(() => {
+    fetchPendingCount();
+  }, [fetchPendingCount]);
 
   // ---------- Handlers ----------
   const handleAddProperty = () => {
@@ -194,6 +221,12 @@ export default function PropertiesPage() {
     setImageErrors((prev) => ({ ...prev, [propertyId]: true }));
   };
 
+  // Called by the drawer after approve/reject so the parent reflects the change
+  const handleVerificationChanged = () => {
+    fetchPendingCount();
+    fetchProperties();
+  };
+
   // ---------- Derived ----------
   const anyFilterActive = useMemo(
     () =>
@@ -253,7 +286,6 @@ export default function PropertiesPage() {
             >
               <X className="w-8 h-8" />
             </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={selectedImage}
               alt="Property"
@@ -264,29 +296,55 @@ export default function PropertiesPage() {
       )}
 
       {/* Page Header */}
-      <div className="mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
-              <span className="w-2 h-8 bg-[#2d7a3a] rounded-full mr-2" />
+      <div className="mb-6 mt-16 md:mt-0">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
+              <span className="w-2 h-7 sm:h-8 bg-[#2d7a3a] rounded-full mr-2 flex-shrink-0" />
               Property Management
             </h1>
             <p className="text-sm text-[#4f6b4f] mt-1 ml-4">
               Manage your property listings
             </p>
           </div>
-          <button
-            onClick={handleAddProperty}
-            className="w-full sm:w-auto bg-[#2d7a3a] hover:bg-[#23682e] text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add New Property</span>
-          </button>
+
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-shrink-0">
+            {/* Verify Properties — owner only */}
+            {isOwner && (
+              <button
+                onClick={() => setVerifyOpen(true)}
+                className="relative w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-[#f0f7ef] text-[#2d7a3a] border border-[#c9e5c3] px-4 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Verify Properties
+                {pendingCountLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : pendingCount > 0 ? (
+                  <span className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 text-[11px] font-bold bg-[#c0392b] text-white rounded-full">
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 text-[11px] font-bold bg-[#e8f5e6] text-[#6a7f6a] rounded-full">
+                    0
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Add New Property */}
+            <button
+              onClick={handleAddProperty}
+              className="w-full sm:w-auto bg-[#2d7a3a] hover:bg-[#23682e] text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add New Property</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 mb-6 shadow-sm">
+      {/* Filter bar (unchanged) */}
+      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-3 sm:p-4 mb-6 shadow-sm">
         <div
           className="grid gap-3"
           style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}
@@ -306,7 +364,6 @@ export default function PropertiesPage() {
             />
           </div>
 
-          {/* Category */}
           <select
             value={filterCategory}
             onChange={(e) => {
@@ -322,7 +379,6 @@ export default function PropertiesPage() {
             ))}
           </select>
 
-          {/* Status */}
           <select
             value={filterStatus}
             onChange={(e) => {
@@ -338,7 +394,6 @@ export default function PropertiesPage() {
             ))}
           </select>
 
-          {/* Min price */}
           <div className="relative">
             <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6a7f6a]" />
             <input
@@ -353,7 +408,6 @@ export default function PropertiesPage() {
             />
           </div>
 
-          {/* Max price */}
           <div className="relative">
             <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6a7f6a]" />
             <input
@@ -368,7 +422,6 @@ export default function PropertiesPage() {
             />
           </div>
 
-          {/* Clear */}
           {anyFilterActive && (
             <button
               onClick={clearFilters}
@@ -381,7 +434,7 @@ export default function PropertiesPage() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content (unchanged) */}
       {loading ? (
         <div className="bg-white rounded-2xl border border-[#e8f0e6] shadow-sm p-12 text-center">
           <div className="flex flex-col items-center gap-3">
@@ -402,189 +455,183 @@ export default function PropertiesPage() {
           </p>
         </div>
       ) : (
-       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 items-stretch">
-{properties.map((property, index) => {
-  const isSold = property.status === 'sold';
-  const allFeatures = Array.isArray(property.features) ? property.features : [];
-  const features = allFeatures.slice(0, 2);
-  const extra = allFeatures.length - features.length;
-  const showImage = property.imageUrl && !imageErrors[property._id];
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 items-stretch">
+          {properties.map((property, index) => {
+            const isSold = property.status === 'sold';
+            const allFeatures = Array.isArray(property.features) ? property.features : [];
+            const features = allFeatures.slice(0, 5);
+            const extra = allFeatures.length - features.length;
+            const showImage = property.imageUrl && !imageErrors[property._id];
 
-  const propertyIdLabel =
-    property.propertyId ||
-    property.listingId ||
-    property.code ||
-    `P-${String((pagination.page - 1) * pagination.limit + index + 3021).padStart(4, '0')}`;
+            const propertyIdLabel =
+              property.propertyId ||
+              property.listingId ||
+              property.code ||
+              `P-${String((pagination.page - 1) * pagination.limit + index + 3021).padStart(4, '0')}`;
 
-  // Spec pills — same simple outlined-pill style as the reference design,
-  // only rendered when the data exists so the row never shows empty pills.
-  const specPills = [
-    getSubTypeLabel(property.propertySubType),
-    property.configuration && property.configuration !== 'commercial'
-      ? String(property.configuration).toUpperCase().replace('BHK', ' BHK')
-      : null,
-    property.areaSqft ? `${property.areaSqft} Sq Ft` : null,
-  ].filter(Boolean);
+            const specPills = [
+              getSubTypeLabel(property.propertySubType),
+              property.configuration && property.configuration !== 'commercial'
+                ? String(property.configuration).toUpperCase().replace('BHK', ' BHK')
+                : null,
+              property.areaSqft ? `${property.areaSqft} Sq Ft` : null,
+            ].filter(Boolean);
 
-  // Fixed heights — change these once and every card updates
-  const IMAGE_HEIGHT = 200;        // px — image wrapper
-  const TITLE_MIN_HEIGHT = 44;     // px — 2 lines of text-sm at leading-snug
+            const IMAGE_HEIGHT = 200;
+            const TITLE_MIN_HEIGHT = 44;
 
-  return (
-    <div
-      key={property._id}
-      className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 group flex flex-col h-full"
-    >
-      {/* ---------- IMAGE — fixed height, no exceptions ---------- */}
-      <div
-        className="relative bg-[#f0f7ef] overflow-hidden flex-shrink-0 cursor-pointer"
-        style={{ height: `${IMAGE_HEIGHT}px`, width: '100%' }}
-        onClick={() => showImage && setSelectedImage(property.imageUrl)}
-      >
-        {showImage ? (
-          <img
-            src={property.imageUrl}
-            alt={property.title || 'Property'}
-            className="group-hover:scale-105 transition-transform duration-300"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              objectPosition: 'center',
-            }}
-            onError={() => handleImageError(property._id)}
-          />
-        ) : (
-          <div
-            className="flex items-center justify-center bg-gradient-to-br from-[#fafffa] to-[#f0f7ef]"
-            style={{ width: '100%', height: '100%' }}
-          >
-            <ImageIcon className="w-10 h-10 text-[#6a7f6a]/40" />
-          </div>
-        )}
-
-        {/* Status badge — top-left */}
-        <span
-          className={`absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold shadow-sm ${
-            isSold ? 'bg-[#fde8e8] text-[#c0392b]' : 'bg-[#e8f5e6] text-[#2d7a3a]'
-          }`}
-        >
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              isSold ? 'bg-[#c0392b]' : 'bg-[#2d7a3a]'
-            }`}
-          />
-          {isSold ? 'Sold' : 'Available'}
-        </span>
-
-        {/* Edit pencil — always-visible circular overlay, top-right */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleEditProperty(property);
-          }}
-          className="absolute top-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
-          aria-label="Edit property"
-        >
-          <Edit className="w-3.5 h-3.5 text-[#1a2e1a]" />
-        </button>
-      </div>
-
-      {/* ---------- CONTENT ---------- */}
-      <div className="p-4 flex-1 flex flex-col">
-        {/* Property ID + category — same row */}
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <span className="text-xs text-[#6a7f6a] font-medium truncate">{propertyIdLabel}</span>
-          <span className="text-[11px] font-medium text-[#4f6b4f] bg-[#f0f7ef] border border-[#e8f0e6] px-2.5 py-1 rounded-full whitespace-nowrap">
-            {getCategoryLabel(property)}
-          </span>
-        </div>
-
-        {/* Title — reserved for 2 lines */}
-        <h3
-          className="text-base font-semibold text-[#1a2e1a] mb-1.5 leading-snug line-clamp-2"
-          style={{ minHeight: `${TITLE_MIN_HEIGHT}px` }}
-        >
-          {property.title || 'Untitled Property'}
-        </h3>
-
-        {/* Location */}
-        <div className="flex items-center gap-1 text-sm text-[#4f6b4f] mb-3 min-w-0">
-          <MapPin className="w-3.5 h-3.5 text-[#6a7f6a] flex-shrink-0" />
-          <span className="truncate">
-            {[property.area, property.city].filter(Boolean).join(', ') || '—'}
-          </span>
-        </div>
-
-        {/* Spec pills — type / configuration / area, plus any extra features */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {specPills.map((label, i) => (
-            <span
-              key={`${property._id}-spec-${i}`}
-              className="text-[11px] text-[#4f6b4f] bg-[#fafffa] border border-[#e8f0e6] px-2.5 py-1 rounded-full whitespace-nowrap"
-            >
-              {label}
-            </span>
-          ))}
-          {features.map((f, i) => (
-            <span
-              key={`${property._id}-feat-${i}`}
-              className="text-[11px] text-[#2d7a3a] bg-[#e8f5e6] px-2.5 py-1 rounded-full whitespace-nowrap"
-            >
-              {f}
-            </span>
-          ))}
-          {extra > 0 && (
-            <span className="text-[11px] text-[#6a7f6a] bg-[#f0f7ef] px-2.5 py-1 rounded-full whitespace-nowrap">
-              +{extra}
-            </span>
-          )}
-        </div>
-
-        {/* Price + Actions — pinned to bottom, same row */}
-        <div className="flex items-center justify-between gap-3 pt-3 mt-auto border-t border-[#eef5ec]">
-          <div className="min-w-0">
-            <p className="text-lg font-bold text-[#1a2e1a] truncate">
-              {formatPrice(property.price, property.propertyType)}
-            </p>
-            {property.facing && (
-              <p className="text-xs text-[#6a7f6a] mt-0.5 truncate">{property.facing} facing</p>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              onClick={() => handleEditProperty(property)}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-[#2d7a3a] border border-[#e8f0e6] hover:bg-[#f0f7ef] hover:border-[#2d7a3a] rounded-xl transition-colors"
-              aria-label="Edit property"
-            >
-              <Edit className="w-3.5 h-3.5" />
-              Edit
-            </button>
-            {isOwner && (
-              <button
-                onClick={() => handleDeleteProperty(property._id)}
-                className="p-2 text-[#6a7f6a] hover:text-red-600 hover:bg-red-50 rounded-xl transition-all flex-shrink-0"
-                title="Delete Property"
-                aria-label="Delete property"
+            return (
+              <div
+                key={property._id}
+                className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 group flex flex-col h-full"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+                <div
+                  className="relative bg-[#f0f7ef] overflow-hidden flex-shrink-0 cursor-pointer"
+                  style={{ height: `${IMAGE_HEIGHT}px`, width: '100%' }}
+                  onClick={() => showImage && setSelectedImage(property.imageUrl)}
+                >
+                  {showImage ? (
+                    <img
+                      src={property.imageUrl}
+                      alt={property.title || 'Property'}
+                      className="group-hover:scale-105 transition-transform duration-300"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        objectPosition: 'center',
+                      }}
+                      onError={() => handleImageError(property._id)}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center bg-gradient-to-br from-[#fafffa] to-[#f0f7ef] w-full h-full">
+                      <ImageIcon className="w-10 h-10 text-[#6a7f6a]/40" />
+                    </div>
+                  )}
+
+                  <span
+                    className={`absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold shadow-sm ${
+                      isSold ? 'bg-[#fde8e8] text-[#c0392b]' : 'bg-[#e8f5e6] text-[#2d7a3a]'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        isSold ? 'bg-[#c0392b]' : 'bg-[#2d7a3a]'
+                      }`}
+                    />
+                    {isSold ? 'Sold' : 'Available'}
+                  </span>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditProperty(property);
+                    }}
+                    className="absolute top-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
+                    aria-label="Edit property"
+                  >
+                    <Edit className="w-3.5 h-3.5 text-[#1a2e1a]" />
+                  </button>
+                </div>
+
+                <div className="p-4 flex-1 flex flex-col">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs text-[#6a7f6a] font-medium truncate">
+                      {propertyIdLabel}
+                    </span>
+                    <span className="text-[11px] font-medium text-[#4f6b4f] bg-[#f0f7ef] border border-[#e8f0e6] px-2.5 py-1 rounded-full whitespace-nowrap">
+                      {getCategoryLabel(property)}
+                    </span>
+                  </div>
+
+                  <h3
+                    className="text-base font-semibold text-[#1a2e1a] mb-1.5 leading-snug line-clamp-2"
+                    style={{ minHeight: `${TITLE_MIN_HEIGHT}px` }}
+                  >
+                    {property.title || 'Untitled Property'}
+                  </h3>
+
+                  <div className="flex items-center gap-1 text-sm text-[#4f6b4f] mb-3 min-w-0">
+                    <MapPin className="w-3.5 h-3.5 text-[#6a7f6a] flex-shrink-0" />
+                    <span className="truncate">
+                      {[property.area, property.city].filter(Boolean).join(', ') || '—'}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {specPills.map((label, i) => (
+                      <span
+                        key={`${property._id}-spec-${i}`}
+                        className="text-xs font-medium text-[#4f6b4f] bg-[#fafffa] border border-[#e8f0e6] px-3 py-1.5 rounded-full whitespace-nowrap"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                    {features.map((f, i) => (
+                      <span
+                        key={`${property._id}-feat-${i}`}
+                        className="text-xs font-medium text-[#2d7a3a] bg-[#e8f5e6] px-3 py-1.5 rounded-full whitespace-nowrap"
+                      >
+                        {f}
+                      </span>
+                    ))}
+                    {extra > 0 && (
+                      <span className="text-xs font-medium text-[#6a7f6a] bg-[#f0f7ef] px-3 py-1.5 rounded-full whitespace-nowrap">
+                        +{extra}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-3 mt-auto border-t border-[#eef5ec]">
+                    <div className="min-w-0">
+                      <p className="text-lg font-bold text-[#1a2e1a] truncate">
+                        {formatPrice(property.price, property.propertyType)}
+                      </p>
+                      {property.brokerage && property.brokerageAmount > 0 && (
+                        <p className="text-xs text-[#6a7f6a] mt-0.5 truncate">
+                          Brokerage: ₹{Number(property.brokerageAmount).toLocaleString('en-IN')}
+                        </p>
+                      )}
+                      {property.facing && (
+                        <p className="text-xs text-[#6a7f6a] mt-0.5 truncate">
+                          {property.facing} facing
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => handleEditProperty(property)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-[#2d7a3a] border border-[#e8f0e6] hover:bg-[#f0f7ef] hover:border-[#2d7a3a] rounded-xl transition-colors"
+                        aria-label="Edit property"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => handleDeleteProperty(property._id)}
+                          className="p-2 text-[#6a7f6a] hover:text-red-600 hover:bg-red-50 rounded-xl transition-all flex-shrink-0"
+                          title="Delete Property"
+                          aria-label="Delete property"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
-    </div>
-  );
-})}
-</div>
       )}
 
-      {/* Pagination */}
+      {/* Pagination (unchanged) */}
       {pagination.pages > 1 && (
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-2xl border border-[#e8f0e6] px-4 py-3 shadow-sm">
-          <div className="text-sm text-[#6a7f6a]">
+          <div className="text-xs sm:text-sm text-[#6a7f6a]">
             Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
             {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
             {pagination.total} properties
@@ -624,6 +671,15 @@ export default function PropertiesPage() {
         property={editingProperty}
         isOwner={isOwner}
       />
+
+      {/* Verify Properties Drawer — owner only */}
+      {isOwner && (
+        <VerifyPropertiesDrawer
+          isOpen={verifyOpen}
+          onClose={() => setVerifyOpen(false)}
+          onChanged={handleVerificationChanged}
+        />
+      )}
     </div>
   );
 }

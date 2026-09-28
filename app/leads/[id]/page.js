@@ -18,6 +18,7 @@ const TABS = [
 
 const CRM_STATUSES = [
   { value: 'new', label: 'New' },
+  { value: 'follow_up', label: 'Follow Up' },
   { value: 'active', label: 'Active' },
   { value: 'contacted', label: 'Contacted' },
   { value: 'interested', label: 'Interested' },
@@ -27,13 +28,82 @@ const CRM_STATUSES = [
   { value: 'converted', label: 'Converted' },
 ];
 
+// Format a JS Date to "3:45 PM" style
+const formatTime12h = (dateInput) => {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+// Format date to "Mon, Sep 28, 2026"
+const formatDate = (dateInput) => {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+// Format a JS Date to "Sep 28, 2026" (day group label)
+const formatDayLabel = (dateInput) => {
+  const d = new Date(dateInput);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const sameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  if (sameDay(d, today)) return 'Today';
+  if (sameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+// Group conversation messages by calendar day
+const groupByDay = (messages) => {
+  const groups = [];
+  let current = null;
+  for (const m of messages) {
+    const d = new Date(m.at);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!current || current.key !== key) {
+      current = { key, date: d, items: [] };
+      groups.push(current);
+    }
+    current.items.push(m);
+  }
+  return groups;
+};
+
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [lead, setLead] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('enquiry');
-  const [subData, setSubData] = useState({ enquiry: [], interested: [], conversation: [], followUps: null, visits: [] });
+  const [subData, setSubData] = useState({
+    enquiry: [],
+    interested: [],
+    conversation: [],
+    followUps: null,
+    visits: [],
+  });
   const [subLoading, setSubLoading] = useState(false);
 
   useEffect(() => {
@@ -42,9 +112,15 @@ export default function LeadDetailPage() {
         const res = await fetch(`/api/leads/${params.id}`);
         const json = await res.json();
         if (json.success) setLead(json.data);
-        else { toast.error('Lead not found'); router.push('/leads'); }
-      } catch { toast.error('Failed to fetch lead'); }
-      finally { setLoading(false); }
+        else {
+          toast.error('Lead not found');
+          router.push('/leads');
+        }
+      } catch {
+        toast.error('Failed to fetch lead');
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [params.id]);
 
@@ -93,7 +169,9 @@ export default function LeadDetailPage() {
         setLead(json.data);
         toast.success('Updated');
       } else toast.error(json.error || 'Failed to update');
-    } catch { toast.error('Failed to update'); }
+    } catch {
+      toast.error('Failed to update');
+    }
   };
 
   if (loading) {
@@ -126,7 +204,8 @@ export default function LeadDetailPage() {
             <Phone className="w-3.5 h-3.5" /> {lead.phone}
           </span>
           <span className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5" /> {lead.city || '—'}{lead.area ? `, ${lead.area}` : ''}
+            <MapPin className="w-3.5 h-3.5" /> {lead.city || '—'}
+            {lead.area ? `, ${lead.area}` : ''}
           </span>
         </div>
       </div>
@@ -136,23 +215,30 @@ export default function LeadDetailPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Field label="Name" value={lead.name} />
           <Field label="Contact Number" value={lead.phone} />
-          <Field label="City / Area" value={`${lead.city || '—'}${lead.area ? ' / ' + lead.area : ''}`} />
+          <Field
+            label="City / Area"
+            value={`${lead.city || '—'}${lead.area ? ' / ' + lead.area : ''}`}
+          />
           <Field label="Assigned To">
-            <input
-              type="text"
-              defaultValue={lead.assignedTo || ''}
-              onBlur={(e) => e.target.value !== lead.assignedTo && updateLead({ assignedTo: e.target.value })}
-              placeholder="Unassigned"
-              className="w-full px-2 py-1 border border-[#e8f0e6] rounded-lg text-sm bg-[#fafffa] focus:outline-none focus:border-[#2d7a3a]"
-            />
-          </Field>
+  {lead.assignedTo ? (
+    <p className="text-sm font-medium text-[#1a2e1a] break-words">
+      {lead.assignedTo}
+    </p>
+  ) : (
+    <p className="text-sm text-[#6a7f6a] italic">Unassigned</p>
+  )}
+</Field>
           <Field label="Current Status">
             <select
               value={lead.currentStatus || 'new'}
               onChange={(e) => updateLead({ currentStatus: e.target.value })}
               className="w-full px-2 py-1 border border-[#e8f0e6] rounded-lg text-sm bg-[#fafffa] focus:outline-none focus:border-[#2d7a3a]"
             >
-              {CRM_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {CRM_STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
             </select>
           </Field>
         </div>
@@ -185,10 +271,18 @@ export default function LeadDetailPage() {
           </div>
         ) : (
           <>
-            {activeTab === 'enquiry' && <EnquiryTab enquiries={subData.enquiry} />}
-            {activeTab === 'interested' && <InterestedTab interests={subData.interested} />}
-            {activeTab === 'conversation' && <ConversationTab conversation={subData.conversation} />}
-            {activeTab === 'followups' && <FollowUpsTab data={subData.followUps} />}
+            {activeTab === 'enquiry' && (
+              <EnquiryTab enquiries={subData.enquiry} />
+            )}
+            {activeTab === 'interested' && (
+              <InterestedTab interests={subData.interested} />
+            )}
+            {activeTab === 'conversation' && (
+              <ConversationTab conversation={subData.conversation} />
+            )}
+            {activeTab === 'followups' && (
+              <FollowUpsTab data={subData.followUps} />
+            )}
             {activeTab === 'visits' && <VisitsTab visits={subData.visits} />}
           </>
         )}
@@ -202,40 +296,84 @@ export default function LeadDetailPage() {
 function Field({ label, value, children }) {
   return (
     <div className="min-w-0">
-      <p className="text-xs font-medium text-[#6a7f6a] uppercase tracking-wider mb-1">{label}</p>
-      {children || <p className="text-sm font-medium text-[#1a2e1a] break-words">{value || '—'}</p>}
+      <p className="text-xs font-medium text-[#6a7f6a] uppercase tracking-wider mb-1">
+        {label}
+      </p>
+      {children || (
+        <p className="text-sm font-medium text-[#1a2e1a] break-words">
+          {value || '—'}
+        </p>
+      )}
     </div>
   );
 }
 
 function EnquiryTab({ enquiries }) {
-  if (!enquiries?.length) return <Empty icon={Building2} text="No property enquiries yet" />;
+  if (!enquiries?.length)
+    return <Empty icon={Building2} text="No property enquiries yet" />;
 
   const sorted = [...enquiries].sort(
     (a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)
   );
 
   return (
-    <div className="space-y-4">
-      {sorted.map((e) => (
-        <div key={e._id} className="border border-[#eef5ec] rounded-xl p-4 bg-[#fafffa]">
-          <p className="text-xs text-[#6a7f6a] mb-3 font-medium">
-            {new Date(e.submittedAt).toLocaleString('en-IN', {
-              year: 'numeric', month: 'short', day: 'numeric',
-              hour: '2-digit', minute: '2-digit',
-            })}
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="space-y-5">
+      {sorted.map((e, idx) => (
+        <div
+          key={e._id}
+          className="rounded-2xl border-2 border-[#dbead8] bg-gradient-to-br from-[#fafffa] to-[#f0f7ef] p-4 sm:p-5 shadow-sm relative overflow-hidden"
+        >
+          {/* Left accent bar to visually distinguish each enquiry */}
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#2d7a3a]" />
+
+          <div className="flex items-center justify-between mb-4 pl-3">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#2d7a3a] text-white text-xs font-semibold">
+                {idx + 1}
+              </span>
+              <span className="text-xs font-semibold text-[#2d7a3a] uppercase tracking-wider">
+                Enquiry
+              </span>
+            </div>
+            <p className="text-xs text-[#6a7f6a] font-medium">
+              {new Date(e.submittedAt).toLocaleString('en-IN', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pl-3">
             <Detail label="City" value={e.city} />
             <Detail label="Area" value={e.area} />
             <Detail label="Purpose" value={e.purpose} />
             <Detail label="Property Category" value={e.propertyCategory} />
             <Detail label="Property Type" value={e.propertyType} />
-            <Detail label="Configuration / Size" value={e.configuration || e.size} />
+            <Detail
+              label="Configuration / Size"
+              value={e.configuration || e.size}
+            />
             <Detail label="Budget" value={e.budgetLabel || e.budgetRange} />
             <Detail label="Timeline" value={e.timeline} />
-            {e.buyingPlan && <Detail label="Buying Plan" value={e.buyingPlan === 'sell_then_buy' ? 'First sell then buy' : 'Directly buy'} />}
-            {e.furnishing && <Detail label="Furnishing" value={e.furnishing.replace(/_/g, ' ')} />}
+            {e.buyingPlan && (
+              <Detail
+                label="Buying Plan"
+                value={
+                  e.buyingPlan === 'sell_then_buy'
+                    ? 'First sell then buy'
+                    : 'Directly buy'
+                }
+              />
+            )}
+            {e.furnishing && (
+              <Detail
+                label="Furnishing"
+                value={e.furnishing.replace(/_/g, ' ')}
+              />
+            )}
           </div>
         </div>
       ))}
@@ -252,9 +390,13 @@ function InterestedTab({ interests }) {
   return (
     <div className="space-y-3">
       {list.map((it, idx) => {
-        const p = typeof it.property === 'object' && it.property !== null ? it.property : null;
+        const p =
+          typeof it.property === 'object' && it.property !== null
+            ? it.property
+            : null;
         const publicTitle = p?.title || it.propertyTitle || 'Property';
-        const internalName = p?.internalName || it.propertySnapshot?.internalName || '';
+        const internalName =
+          p?.internalName || it.propertySnapshot?.internalName || '';
         const city = p?.city || it.propertySnapshot?.city || '';
         const area = p?.area || it.propertySnapshot?.area || '';
         const price = p?.price || it.propertySnapshot?.price || 0;
@@ -292,13 +434,17 @@ function InterestedTab({ interests }) {
               )}
 
               <p className="text-xs text-[#6a7f6a]">
-                {city}{city && area ? ' • ' : ''}{area}
+                {city}
+                {city && area ? ' • ' : ''}
+                {area}
               </p>
               <p className="text-xs text-[#6a7f6a] mt-1">
                 Expressed interest on{' '}
                 {it.expressedAt
                   ? new Date(it.expressedAt).toLocaleDateString('en-IN', {
-                      month: 'short', day: 'numeric', year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
                     })
                   : '—'}
               </p>
@@ -317,43 +463,82 @@ function InterestedTab({ interests }) {
 }
 
 function ConversationTab({ conversation }) {
-  if (!conversation?.length) return <Empty icon={MessageSquare} text="No conversation yet" />;
+  if (!conversation?.length)
+    return <Empty icon={MessageSquare} text="No conversation yet" />;
+
+  const groups = groupByDay(conversation);
 
   return (
-    <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-      {conversation.map((c) => (
-        <div key={c._id} className={`flex ${c.direction === 'in' ? 'justify-start' : 'justify-end'}`}>
-          <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 sm:px-4 py-2 ${
-            c.direction === 'in'
-              ? 'bg-[#f0f7ef] text-[#1a2e1a] border border-[#e8f0e6]'
-              : 'bg-[#2d7a3a] text-white'
-          }`}>
-            {c.type === 'image' ? (
-              c.imageUrl ? (
-                <img src={c.imageUrl} alt="" className="rounded-lg max-w-full" />
-              ) : (
-                <p className="text-sm italic">📷 Image</p>
-              )
-            ) : (
-              <p className="text-sm whitespace-pre-wrap break-words">{c.text || '—'}</p>
-            )}
-            {c.payload?.buttons && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {c.payload.buttons.map((b, i) => (
-                  <span
-                    key={i}
-                    className={`text-xs px-2 py-0.5 rounded ${
-                      c.direction === 'in' ? 'bg-white/50' : 'bg-white/20'
+    <div className="max-h-[640px] overflow-y-auto pr-1 space-y-5">
+      {groups.map((group) => (
+        <div key={group.key}>
+          {/* Date separator — centered like WhatsApp */}
+          <div className="flex items-center justify-center my-3">
+            <span className="px-3 py-1 text-[11px] font-medium text-[#6a7f6a] bg-[#f0f7ef] rounded-full border border-[#e8f0e6] shadow-sm">
+              {formatDayLabel(group.date)}
+            </span>
+          </div>
+
+          {/* Messages for this day — no date inside, only time */}
+          <div className="space-y-1.5">
+            {group.items.map((c) => (
+              <div
+                key={c._id}
+                className={`flex ${
+                  c.direction === 'in' ? 'justify-start' : 'justify-end'
+                }`}
+              >
+                <div
+                  className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 sm:px-4 py-2 ${
+                    c.direction === 'in'
+                      ? 'bg-[#f0f7ef] text-[#1a2e1a] border border-[#e8f0e6] rounded-tl-md'
+                      : 'bg-[#2d7a3a] text-white rounded-tr-md'
+                  }`}
+                >
+                  {c.type === 'image' ? (
+                    c.imageUrl ? (
+                      <img
+                        src={c.imageUrl}
+                        alt=""
+                        className="rounded-lg max-w-full"
+                      />
+                    ) : (
+                      <p className="text-sm italic">📷 Image</p>
+                    )
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap break-words">
+                      {c.text || '—'}
+                    </p>
+                  )}
+
+                  {c.payload?.buttons && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {c.payload.buttons.map((b, i) => (
+                        <span
+                          key={i}
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            c.direction === 'in'
+                              ? 'bg-white/50'
+                              : 'bg-white/20'
+                          }`}
+                        >
+                          {b.title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Time only — no date */}
+                  <p
+                    className={`text-[10px] mt-1 text-right ${
+                      c.direction === 'in' ? 'text-[#6a7f6a]' : 'text-white/70'
                     }`}
                   >
-                    {b.title}
-                  </span>
-                ))}
+                    {formatTime12h(c.at)}
+                  </p>
+                </div>
               </div>
-            )}
-            <p className={`text-[10px] mt-1 ${c.direction === 'in' ? 'text-[#6a7f6a]' : 'text-white/70'}`}>
-              {new Date(c.at).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-            </p>
+            ))}
           </div>
         </div>
       ))}
@@ -369,27 +554,60 @@ function FollowUpsTab({ data }) {
     sent: { label: 'Sent', tone: 'bg-[#e6f0fb] text-[#2a6ba8]' },
     responded: { label: 'Responded', tone: 'bg-[#e8f5e6] text-[#2d7a3a]' },
     converted: { label: 'Converted', tone: 'bg-[#e8f5e6] text-[#2d7a3a]' },
-    unsubscribed: { label: 'Unsubscribed', tone: 'bg-[#fde8e8] text-[#c0392b]' },
+    unsubscribed: {
+      label: 'Unsubscribed',
+      tone: 'bg-[#fde8e8] text-[#c0392b]',
+    },
   };
   const s = statusMap[data.status] || statusMap.pending;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SmallStat label="Status" value={<span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${s.tone}`}>{s.label}</span>} />
+        <SmallStat
+          label="Status"
+          value={
+            <span
+              className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${s.tone}`}
+            >
+              {s.label}
+            </span>
+          }
+        />
         <SmallStat label="Follow-ups Sent" value={data.count || 0} />
-        <SmallStat label="Last Sent" value={data.lastSentAt ? new Date(data.lastSentAt).toLocaleString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'} />
+        <SmallStat
+          label="Last Sent"
+          value={
+            data.lastSentAt
+              ? new Date(data.lastSentAt).toLocaleString('en-IN', {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : '—'
+          }
+        />
         <SmallStat label="Stuck At Step" value={data.stuckAtStep || '—'} />
       </div>
 
       {data.messages?.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-[#6a7f6a] uppercase tracking-wider mb-2">Follow-up History</p>
+          <p className="text-xs font-medium text-[#6a7f6a] uppercase tracking-wider mb-2">
+            Follow-up History
+          </p>
           <div className="space-y-2">
             {data.messages.map((m) => (
-              <div key={m._id} className="border border-[#eef5ec] rounded-xl p-3 bg-[#fafffa]">
-                <p className="text-xs text-[#6a7f6a] mb-1">{new Date(m.at).toLocaleString('en-IN')}</p>
-                <p className="text-sm text-[#1a2e1a] whitespace-pre-wrap break-words">{m.text}</p>
+              <div
+                key={m._id}
+                className="border border-[#eef5ec] rounded-xl p-3 bg-[#fafffa]"
+              >
+                <p className="text-xs text-[#6a7f6a] mb-1">
+                  {new Date(m.at).toLocaleString('en-IN')}
+                </p>
+                <p className="text-sm text-[#1a2e1a] whitespace-pre-wrap break-words">
+                  {m.text}
+                </p>
               </div>
             ))}
           </div>
@@ -399,42 +617,116 @@ function FollowUpsTab({ data }) {
   );
 }
 
+/* ---------- Site Visits — now a table ---------- */
 function VisitsTab({ visits }) {
   if (!visits?.length) return <Empty icon={Calendar} text="No site visits yet" />;
 
   return (
-    <div className="space-y-3">
-      {visits.map((v) => (
-        <div key={v._id} className="border border-[#eef5ec] rounded-xl p-4 bg-[#fafffa]">
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <span className="text-sm font-medium text-[#1a2e1a] break-words">
-              {v.property?.title || v.propertyTitle || 'Property'}
-            </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-              v.status === 'completed' ? 'bg-[#e8f5e6] text-[#2d7a3a]'
-              : v.status === 'scheduled' ? 'bg-[#e6f0fb] text-[#2a6ba8]'
-              : v.status === 'rescheduled' ? 'bg-[#f3e8ff] text-[#7a3aa8]'
-              : v.status === 'cancelled' ? 'bg-[#fde8e8] text-[#c0392b]'
-              : 'bg-[#fef7e0] text-[#b68b40]'
-            }`}>{v.status}</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            <Detail label="Date" value={v.scheduledDate ? new Date(v.scheduledDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'} />
-            <Detail label="Time" value={v.scheduledTime || '—'} />
-            <Detail label="Preferred (raw)" value={v.rawPreferredDateTime || '—'} />
-            <Detail label="Channel Partner" value={v.channelPartnerName || '—'} />
-          </div>
-        </div>
-      ))}
+    <div className="overflow-x-auto -mx-4 md:mx-0">
+      <table className="w-full min-w-[640px]">
+        <thead>
+          <tr className="bg-[#fafffa] border-b border-[#e8f0e6]">
+            <th className="text-left px-4 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">
+              Property
+            </th>
+            <th className="text-left px-4 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">
+              Date
+            </th>
+            <th className="text-left px-4 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">
+              Time
+            </th>
+            <th className="text-left px-4 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">
+              Channel Partner
+            </th>
+            <th className="text-left px-4 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">
+              Status
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {visits.map((v) => (
+            <tr
+              key={v._id}
+              className="border-b border-[#eef5ec] hover:bg-[#fafffa] transition-colors"
+            >
+              <td className="px-4 py-3 text-sm text-[#1a2e1a]">
+                {v.property?.title || v.propertyTitle || '—'}
+              </td>
+              <td className="px-4 py-3 text-sm text-[#4f6b4f]">
+                {formatDate(v.scheduledDate)}
+              </td>
+              <td className="px-4 py-3 text-sm text-[#4f6b4f]">
+                {v.scheduledTime
+                  ? v.scheduledTime
+                  : formatTime12h(v.scheduledDate)}
+              </td>
+              <td className="px-4 py-3 text-sm text-[#4f6b4f]">
+                {v.channelPartnerName || '—'}
+              </td>
+              <td className="px-4 py-3">
+                <VisitStatusBadge status={v.status} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
+  );
+}
+
+function VisitStatusBadge({ status }) {
+  const map = {
+    scheduled: {
+      bg: 'bg-[#e6f0fb]',
+      text: 'text-[#2a6ba8]',
+      dot: 'bg-[#2a6ba8]',
+      label: 'Scheduled',
+    },
+    pending: {
+      bg: 'bg-[#fef7e0]',
+      text: 'text-[#b68b40]',
+      dot: 'bg-[#b68b40]',
+      label: 'Pending',
+    },
+    completed: {
+      bg: 'bg-[#e8f5e6]',
+      text: 'text-[#2d7a3a]',
+      dot: 'bg-[#2d7a3a]',
+      label: 'Completed',
+    },
+    rescheduled: {
+      bg: 'bg-[#f3e8ff]',
+      text: 'text-[#7a3aa8]',
+      dot: 'bg-[#7a3aa8]',
+      label: 'Rescheduled',
+    },
+    cancelled: {
+      bg: 'bg-[#fde8e8]',
+      text: 'text-[#c0392b]',
+      dot: 'bg-[#c0392b]',
+      label: 'Cancelled',
+    },
+  };
+  const s = map[status] || map.pending;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-full whitespace-nowrap ${s.bg} ${s.text}`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+      {s.label}
+    </span>
   );
 }
 
 function Detail({ label, value }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-medium text-[#6a7f6a] uppercase tracking-wider">{label}</p>
-      <p className="text-sm text-[#1a2e1a] mt-0.5 break-words">{value || '—'}</p>
+      <p className="text-[10px] font-medium text-[#6a7f6a] uppercase tracking-wider">
+        {label}
+      </p>
+      <p className="text-sm text-[#1a2e1a] mt-0.5 break-words">
+        {value || '—'}
+      </p>
     </div>
   );
 }
@@ -442,8 +734,12 @@ function Detail({ label, value }) {
 function SmallStat({ label, value }) {
   return (
     <div className="bg-[#fafffa] border border-[#eef5ec] rounded-xl p-3 min-w-0">
-      <p className="text-[10px] font-medium text-[#6a7f6a] uppercase tracking-wider mb-1">{label}</p>
-      <div className="text-sm font-medium text-[#1a2e1a] break-words">{value}</div>
+      <p className="text-[10px] font-medium text-[#6a7f6a] uppercase tracking-wider mb-1">
+        {label}
+      </p>
+      <div className="text-sm font-medium text-[#1a2e1a] break-words">
+        {value}
+      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   Trash2,
   Phone,
   FolderOpen,
+  XCircle,
 } from 'lucide-react';
 
 const STATUS_TABS = [
@@ -19,6 +20,7 @@ const STATUS_TABS = [
   { value: 'pending',     label: 'Pending',     icon: Clock },
   { value: 'completed',   label: 'Completed',   icon: CheckCircle },
   { value: 'rescheduled', label: 'Rescheduled', icon: RefreshCw },
+  { value: 'cancelled',   label: 'Cancelled',   icon: XCircle },
 ];
 
 export default function SiteVisitsPage() {
@@ -32,14 +34,16 @@ export default function SiteVisitsPage() {
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [activePartners, setActivePartners] = useState([]);
 
   const fetchStats = async () => {
     try {
       const res = await fetch('/api/site-visits/stats');
-      const json = await res.json();
-      if (json.success) setStats(json.data);
-      else console.warn('[site-visits] stats API returned failure:', json);
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        setStats(json.data);
+      } else {
+        console.warn('[site-visits] stats API returned failure:', json);
+      }
     } catch (err) {
       console.error('[site-visits] stats fetch error:', err);
     }
@@ -70,19 +74,8 @@ export default function SiteVisitsPage() {
     }
   };
 
-  const fetchActivePartners = async () => {
-    try {
-      const res = await fetch('/api/team-members?role=channel_partner&active=true&limit=500');
-      const json = await res.json();
-      if (json.success) setActivePartners(Array.isArray(json.data) ? json.data : []);
-    } catch (err) {
-      console.error('Failed to fetch partners', err);
-    }
-  };
-
   useEffect(() => {
     fetchStats();
-    fetchActivePartners();
   }, []);
 
   useEffect(() => {
@@ -117,13 +110,12 @@ export default function SiteVisitsPage() {
         body: JSON.stringify({
           scheduledDate: editing.scheduledDate,
           scheduledTime: editing.scheduledTime,
-          channelPartnerName: editing.channelPartnerName,
           status: editing.status,
           notes: editing.notes,
         }),
       });
-      const json = await res.json();
-      if (res.ok && json.success) {
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
         toast.success('Site visit updated');
         setEditing(null);
         fetchVisits();
@@ -456,18 +448,14 @@ export default function SiteVisitsPage() {
               </div>
 
               <Field label="Channel Partner">
-                <select
-                  value={editing.channelPartnerName || ''}
-                  onChange={(e) => setEditing((p) => ({ ...p, channelPartnerName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
-                >
-                  <option value="">— Not assigned —</option>
-                  {activePartners.map((p) => (
-                    <option key={p._id} value={p.name}>
-                      {p.name}{p.phone ? ` — ${p.phone}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#f0f7ef] text-[#4f6b4f]">
+                  {editing.channelPartnerName || (
+                    <span className="text-[#6a7f6a] italic">Not assigned</span>
+                  )}
+                </div>
+                <p className="text-[10px] text-[#6a7f6a] mt-1 uppercase tracking-wider">
+                  Change via Lead Assignment page
+                </p>
               </Field>
 
               <Field label="Status">

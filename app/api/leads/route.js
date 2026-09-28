@@ -13,6 +13,10 @@ const ALLOWED_LEAD_FIELDS = [
   'interested', 'ownedPropertyDraft', 'listingDraft',
   'step', 'cityAttempts', 'areaAttempts',
   'matchedProperties', 'currentPropertyIndex',
+  'source',           // ← new
+  'currentStatus',    // ← new
+  'assignedTo',       // ← new
+  'notes',  
 ];
 
 function escapeRegex(str) {
@@ -79,6 +83,7 @@ export async function GET(request) {
       spaceSize: lead.spaceSize || null,
       step: lead.step,
       isCompleted: lead.step === 'completed',
+      source: lead.source || 'whatsapp_bot',
       interested: lead.interested || null,
       matchedProperties: lead.matchedProperties || [],
       ownedPropertyDraft: lead.ownedPropertyDraft || null,

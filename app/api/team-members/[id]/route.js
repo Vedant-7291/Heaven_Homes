@@ -1,5 +1,7 @@
 import dbConnect, { isDbConnected } from '@/lib/mongodb';
 import TeamMember from '@/lib/models/TeamMember';
+import { encryptPassword, decryptPassword } from '@/lib/auth/password-crypto';
+import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 import Lead from '@/lib/models/Lead';
@@ -8,8 +10,8 @@ function isValidObjectId(id) {
   return /^[0-9a-fA-F]{24}$/.test(id);
 }
 
-function safeMember(m) {
-  return {
+function safeMember(m, { revealPassword = false } = {}) {
+  const base = {
     _id: m._id,
     name: m.name,
     role: m.role,
@@ -18,8 +20,11 @@ function safeMember(m) {
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   };
+  if (revealPassword) {
+    base.password = decryptPassword(m.passwordEnc || '');
+  }
+  return base;
 }
-
 export async function GET(request, { params }) {
   try {
     if (!isDbConnected()) {
@@ -32,10 +37,17 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
     }
 
-    const member = await TeamMember.findById(id).lean();
-    if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+const session = verifySessionToken(token);
+const isOwner = session?.role === 'owner';
 
-    return NextResponse.json({ success: true, data: safeMember(member) });
+const member = await TeamMember.findById(id).lean();
+if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+return NextResponse.json({
+  success: true,
+  data: safeMember(member, { revealPassword: isOwner }),
+});
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -73,13 +85,14 @@ export async function PUT(request, { params }) {
     }
 
     if (body.password !== undefined) {
-      const v = String(body.password).trim();
-      if (v.length < 4) {
-        return NextResponse.json({ error: 'Password must be at least 4 characters' }, { status: 400 });
-      }
-      clean.passwordHash = await bcrypt.hash(v, 10);
-      clean.password = ''; // clear any legacy plaintext
-    }
+  const v = String(body.password).trim();
+  if (v.length < 4) {
+    return NextResponse.json({ error: 'Password must be at least 4 characters' }, { status: 400 });
+  }
+  clean.passwordHash = await bcrypt.hash(v, 10);
+  clean.passwordEnc = encryptPassword(v);   // ← new
+  clean.password = '';
+}
 
     if (body.role !== undefined) {
       if (!['owner', 'channel_partner'].includes(body.role)) {

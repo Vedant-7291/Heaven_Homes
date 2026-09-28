@@ -3,14 +3,6 @@ import { NextResponse } from 'next/server';
 
 const SESSION_COOKIE_NAME = 'hh_session';
 
-function base64url(buf) {
-  return Buffer.from(buf)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-}
-
 function fromBase64url(str) {
   str = str.replace(/-/g, '+').replace(/_/g, '/');
   while (str.length % 4) str += '=';
@@ -22,20 +14,24 @@ async function verifySessionTokenEdge(token, secret) {
   const [encoded, signature] = token.split('.');
   if (!encoded || !signature) return null;
 
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const sigBuf = await crypto.subtle.sign('HMAC', key, enc.encode(encoded));
-  const expected = base64url(new Uint8Array(sigBuf));
-
-  if (signature !== expected) return null;
-
   try {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    // crypto.subtle.verify is constant-time
+    const valid = await crypto.subtle.verify(
+      'HMAC',
+      key,
+      fromBase64url(signature),
+      enc.encode(encoded)
+    );
+    if (!valid) return null;
+
     const payload = JSON.parse(fromBase64url(encoded).toString('utf8'));
     if (!payload.exp || Date.now() > payload.exp) return null;
     return payload;
@@ -45,36 +41,29 @@ async function verifySessionTokenEdge(token, secret) {
 }
 
 export async function proxy(request) {
-  const { pathname } = request.nextUrl;
+  const { pathname, search } = request.nextUrl;
+  const isApi = pathname.startsWith('/api/');
 
-  // ---- PUBLIC PATHS ----
+  // ---- PUBLIC APIs (no cookie needed) ----
   const isPublicApi =
     pathname.startsWith('/api/auth/') ||
-    pathname === '/api/webhook';   // WhatsApp webhook — Meta posts here, no cookie
+    pathname === '/api/webhook'; // WhatsApp webhook — Meta posts here, no cookie
+  if (isPublicApi) return NextResponse.next();
 
-  const isPublicPage =
-    pathname === '/' ||
-    pathname === '/login';
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const secret = process.env.AUTH_SECRET;
+  const payload = secret && token ? await verifySessionTokenEdge(token, secret) : null;
 
-  const isStaticAsset =
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon') ||
-    pathname.startsWith('/static');
-
-  if (isPublicApi || isPublicPage || isStaticAsset) {
+  // ---- LOGIN PAGE: only for logged-out users ----
+  if (pathname === '/login') {
+    if (payload) return NextResponse.redirect(new URL('/', request.url));
     return NextResponse.next();
   }
 
-  // ---- PROTECTED ----
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const secret = process.env.AUTH_SECRET;
-
-  // If the secret is missing, that's a server misconfiguration — return a
-  // JSON 500 for API paths so the frontend gets a useful error, and a
-  // redirect for HTML pages.
+  // ---- Server misconfiguration ----
   if (!secret) {
     console.error('[proxy] AUTH_SECRET missing');
-    if (pathname.startsWith('/api/')) {
+    if (isApi) {
       return NextResponse.json(
         { error: 'Server misconfigured', message: 'AUTH_SECRET missing' },
         { status: 500 }
@@ -83,20 +72,16 @@ export async function proxy(request) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  const payload = await verifySessionTokenEdge(token, secret);
-
+  // ---- PROTECTED (everything else, including "/") ----
   if (!payload) {
-    // ── API routes: return JSON 401, do NOT redirect ──
-    if (pathname.startsWith('/api/')) {
+    if (isApi) {
       return NextResponse.json(
         { error: 'Unauthorized', message: 'Please log in' },
         { status: 401 }
       );
     }
-
-    // ── HTML pages: redirect to login with a return URL ──
     const url = new URL('/login', request.url);
-    url.searchParams.set('next', pathname);
+    if (pathname !== '/') url.searchParams.set('next', pathname + search);
     return NextResponse.redirect(url);
   }
 
@@ -104,7 +89,8 @@ export async function proxy(request) {
 }
 
 export const config = {
+  // Skip Next internals and static files (logo.png etc. must load on the login page)
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js|map|woff2?|txt)$).*)',
   ],
 };

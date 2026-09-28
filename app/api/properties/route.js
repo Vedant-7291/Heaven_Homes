@@ -18,6 +18,7 @@ const ALLOWED_FIELDS = [
   'imagePublicId', 'images', 'ownerPhone', 'ownerName', 'source',
   'dimensions', 'facing', 'floor', 'monthlyRent', 'securityDeposit',
   'setupType', 'availableFrom', 'categoryTab',
+  'brokerage', 'brokerageAmount',
 ];
 
 function escapeRegex(str) {
@@ -110,6 +111,7 @@ export async function POST(request) {
     const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = verifySessionToken(token);
     const isOwner = session?.role === 'owner';
+    const uploaderId = session?.sub || null;  
 
     const body = await request.json();
 
@@ -126,6 +128,9 @@ export async function POST(request) {
     const cleanBody = {};
     for (const key of ALLOWED_FIELDS) {
       if (body[key] !== undefined) cleanBody[key] = body[key];
+    }
+     if (!isOwner && uploaderId) {
+      cleanBody.uploadedBy = uploaderId;
     }
 
     // ---- Server-side status enforcement ----

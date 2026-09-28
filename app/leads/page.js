@@ -1,8 +1,6 @@
 "use client";
 import { useAuth } from "@/lib/auth/useAuth";
 
-// at top of component:
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -19,13 +17,46 @@ import {
   ChevronRight,
   FolderOpen,
   Star,
+  Download,
+  X,
+  Loader2,
 } from "lucide-react";
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "", label: "All Status" },
+  { value: "new", label: "New" },
+  { value: "follow_up", label: "Follow Up" },
+  { value: "active", label: "Active" },
+  { value: "contacted", label: "Contacted" },
+  { value: "interested", label: "Interested" },
+  { value: "site_visit_scheduled", label: "Visit Scheduled" },
+  { value: "site_visit_completed", label: "Visit Done" },
+  { value: "lost", label: "Lost" },
+  { value: "converted", label: "Converted" },
+];
+
+const PROPERTY_CATEGORIES = [
+  { value: "", label: "— Select —" },
+  { value: "purchase", label: "Purchase" },
+  { value: "rent_lease", label: "Rent / Lease" },
+  { value: "rent_out", label: "Rent Out" },
+];
+
+const LEAD_TYPES = [
+  { value: "seeker", label: "Seeker" },
+  { value: "lister", label: "Lister" },
+];
 
 export default function LeadsPage() {
   const { isOwner } = useAuth();
   const router = useRouter();
   const [leads, setLeads] = useState([]);
-  const [stats, setStats] = useState({ total: 0, active: 0, converted: 0 });
+  const [stats, setStats] = useState({
+    total: 0,
+    followUp: 0,
+    active: 0,
+    converted: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -37,11 +68,38 @@ export default function LeadsPage() {
     pages: 0,
   });
 
+  // Add Lead modal
+  const [addOpen, setAddOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    city: "",
+    area: "",
+    leadType: "seeker",
+    propertyCategory: "",
+    budgetRange: "",
+    rentBudgetLabel: "",
+    timeline: "",
+    furnishing: "",
+    currentStatus: "new",
+    assignedTo: "",
+    notes: "",
+  });
+
   const fetchStats = async () => {
     try {
       const res = await fetch("/api/leads/stats");
       const json = await res.json();
-      if (json.success) setStats(json.data);
+      if (json.success) {
+        setStats({
+          total: json.data?.total ?? 0,
+          followUp: json.data?.byStatus?.follow_up ?? 0,
+          active: json.data?.active ?? 0,
+          converted: json.data?.converted ?? 0,
+        });
+      }
     } catch (err) {
       console.error(err);
     }
@@ -53,9 +111,10 @@ export default function LeadsPage() {
       const params = new URLSearchParams({
         page: pagination.page,
         limit: pagination.limit,
-        ...(filterStatus && { status: filterStatus }),
-        ...(filterCity && { city: filterCity }),
       });
+      // Pass CRM status filter separately so backend can filter by currentStatus
+      if (filterStatus) params.set("currentStatus", filterStatus);
+      if (filterCity) params.set("city", filterCity);
       const res = await fetch(`/api/leads?${params}`);
       const json = await res.json();
       if (json.success) {
@@ -93,6 +152,138 @@ export default function LeadsPage() {
     }
   };
 
+  const handleExport = () => {
+    if (!filteredLeads?.length) {
+      toast.error("No leads to export");
+      return;
+    }
+
+    // Build CSV (opens natively in Excel; .csv keeps this dependency-free)
+    const headers = [
+      "Name",
+      "Phone",
+      "Email",
+      "City",
+      "Area",
+      "Source",
+      "Lead Type",
+      "Property Category",
+      "Budget",
+      "Timeline",
+      "Furnishing",
+      "Assigned To",
+      "Status",
+      "Created At",
+    ];
+
+    const escape = (v) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+
+    const rows = filteredLeads.map((lead) => {
+      const statusKey = normalizeStatus(lead.currentStatus);
+      const statusLabel =
+        statusMap[statusKey]?.label ||
+        (lead.currentStatus ? titleCase(lead.currentStatus) : "Unknown");
+      return [
+        lead.name || "",
+        lead.phone || "",
+        lead.email || "",
+        lead.city || "",
+        lead.area || "",
+        lead.leadType === "lister" ? "Lister" : "Manual / WhatsApp",
+        lead.leadType || "",
+        lead.propertyCategory || "",
+        lead.rentBudgetLabel || lead.budgetRange || "",
+        lead.timeline || "",
+        lead.furnishing || "",
+        lead.assignedTo || "Unassigned",
+        statusLabel,
+        lead.createdAt
+          ? new Date(lead.createdAt).toLocaleString("en-IN")
+          : "",
+      ];
+    });
+
+    const csv = [headers, ...rows]
+      .map((r) => r.map(escape).join(","))
+      .join("\n");
+
+    // Add UTF-8 BOM so Excel detects encoding correctly (₹, emoji, etc.)
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `leads-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Leads exported");
+  };
+
+  const openAddModal = () => {
+    setForm({
+      name: "",
+      phone: "",
+      email: "",
+      city: "",
+      area: "",
+      leadType: "seeker",
+      propertyCategory: "",
+      budgetRange: "",
+      rentBudgetLabel: "",
+      timeline: "",
+      furnishing: "",
+      currentStatus: "new",
+      assignedTo: "",
+      notes: "",
+    });
+    setAddOpen(true);
+  };
+
+  const closeAddModal = () => {
+    setAddOpen(false);
+  };
+
+  const handleAddSave = async () => {
+    if (!form.phone.trim()) return toast.error("Phone is required");
+    if (!form.name.trim()) return toast.error("Name is required");
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          source: "manual",
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("Lead added");
+        closeAddModal();
+        fetchLeads();
+        fetchStats();
+      } else {
+        toast.error(json.error || "Failed to add lead");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add lead");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const filteredLeads = leads.filter((lead) => {
     if (!searchTerm) return true;
     const q = searchTerm.toLowerCase();
@@ -104,139 +295,116 @@ export default function LeadsPage() {
     );
   });
 
-// Every entry has the exact same shape (bg / text / dot / border / label) so
-// the badge template below never has to branch on which status it's
-// rendering — that's what guarantees New, Active, Visit Scheduled, etc. all
-// come out looking like the same kind of pill, just in a different color.
-// `border` matters as much as `bg` here: a few of these background tints
-// (interested, contacted, site_visit_scheduled) are pale enough that
-// without a matching border they can read as "no pill at all" against a
-// white row, which is what made some statuses look styled and others look
-// like plain text.
-// Each entry is a single plain-CSS class (defined in globals.css, not a
-// Tailwind arbitrary-value utility) plus the label. Using one static class
-// name per status — rather than assembling bg-[#..]/text-[#..]/border-[#..]
-// via Tailwind bracket syntax — means the pill's color no longer depends on
-// Tailwind's JIT scanner picking up a dynamically-interpolated ${s.bg}
-// class. Plain CSS always renders, regardless of dev-server cache state.
-const statusMap = {
-  new: { pillClass: 'status-new', label: 'New' },
-  active: { pillClass: 'status-active', label: 'Active' },
-  contacted: { pillClass: 'status-contacted', label: 'Contacted' },
-  interested: { pillClass: 'status-interested', label: 'Interested' },
-  site_visit_scheduled: {
-    pillClass: 'status-site-visit-scheduled',
-    label: 'Visit Scheduled',
-  },
-  site_visit_completed: {
-    pillClass: 'status-site-visit-completed',
-    label: 'Visit Done',
-  },
-  lost: { pillClass: 'status-lost', label: 'Lost' },
-  converted: { pillClass: 'status-converted', label: 'Converted' },
-};
-
-// Fallback for any status value that doesn't match a known key, so an
-// unrecognized status still renders as the same kind of pill instead of
-// silently being mislabeled as something else (see normalizeStatus below).
-const DEFAULT_STATUS_STYLE = {
-  pillClass: 'status-unknown',
-  label: 'Unknown',
-};
-
-// Turns a raw status value (however it was saved — snake_case, kebab-case,
-// extra spaces, mixed case) into a readable "Title Case" label. This is
-// what keeps the pill looking consistent even for a status that isn't in
-// statusMap: instead of printing the raw db value verbatim (which is what
-// made a status changed from the lead detail page look "inconsistent" next
-// to the ones rendered from statusMap), it always gets the same clean,
-// title-cased label treatment.
-const titleCase = (str) =>
-  String(str)
-    .trim()
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .split(' ')
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ');
-
-// Normalizes any raw status value (whatever casing/spacing/underscores it
-// was saved with — including values written by the lead detail page) down
-// to one of statusMap's known keys. Hoisted out of the per-row map below so
-// it's defined once per render instead of once per lead.
-const normalizeStatus = (status) => {
-  if (!status) return 'new';
-
-  const value = String(status)
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_');
-
-  const aliases = {
-    new: 'new',
-    active: 'active',
-    contacted: 'contacted',
-    interested: 'interested',
-
-    // Handle different possible values from database
-    site_visit_scheduled: 'site_visit_scheduled',
-    sitevisitscheduled: 'site_visit_scheduled',
-    visit_scheduled: 'site_visit_scheduled',
-    visitscheduled: 'site_visit_scheduled',
-
-    site_visit_completed: 'site_visit_completed',
-    sitevisitcompleted: 'site_visit_completed',
-    visit_completed: 'site_visit_completed',
-    visitcompleted: 'site_visit_completed',
-    visit_done: 'site_visit_completed',
-
-    not_interested: 'lost',
-    notinterested: 'lost',
-    lost: 'lost',
-
-    converted: 'converted',
-    closed: 'converted',
-    closed_won: 'converted',
+  const statusMap = {
+    new: { pillClass: "status-new", label: "New" },
+    follow_up: { pillClass: "status-follow-up", label: "Follow Up" },
+    active: { pillClass: "status-active", label: "Active" },
+    contacted: { pillClass: "status-contacted", label: "Contacted" },
+    interested: { pillClass: "status-interested", label: "Interested" },
+    site_visit_scheduled: {
+      pillClass: "status-site-visit-scheduled",
+      label: "Visit Scheduled",
+    },
+    site_visit_completed: {
+      pillClass: "status-site-visit-completed",
+      label: "Visit Done",
+    },
+    lost: { pillClass: "status-lost", label: "Lost" },
+    converted: { pillClass: "status-converted", label: "Converted" },
   };
 
-  // Important: fall through to the raw normalized value instead of
-  // defaulting to "new" here. Defaulting to "new" would silently relabel
-  // any status we don't recognize (a typo, a new DB value, a value the
-  // lead detail page saves that isn't in this alias list, etc.) as "New" —
-  // wrong data dressed up as a valid status. Returning the raw value
-  // instead means it falls through to DEFAULT_STATUS_STYLE below, which
-  // still renders the same pill shape and a properly title-cased label.
-  return aliases[value] || value;
-};
+  const DEFAULT_STATUS_STYLE = {
+    pillClass: "status-unknown",
+    label: "Unknown",
+  };
+
+  const titleCase = (str) =>
+    String(str)
+      .trim()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+
+  const normalizeStatus = (status) => {
+    if (!status) return "new";
+    const value = String(status)
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+    const aliases = {
+      new: "new",
+      follow_up: "follow_up",
+      followup: "follow_up",
+      followup_: "follow_up",
+      active: "active",
+      contacted: "contacted",
+      interested: "interested",
+      site_visit_scheduled: "site_visit_scheduled",
+      sitevisitscheduled: "site_visit_scheduled",
+      visit_scheduled: "site_visit_scheduled",
+      visitscheduled: "site_visit_scheduled",
+      site_visit_completed: "site_visit_completed",
+      sitevisitcompleted: "site_visit_completed",
+      visit_completed: "site_visit_completed",
+      visitcompleted: "site_visit_completed",
+      visit_done: "site_visit_completed",
+      not_interested: "lost",
+      notinterested: "lost",
+      lost: "lost",
+      converted: "converted",
+      closed: "converted",
+      closed_won: "converted",
+    };
+    return aliases[value] || value;
+  };
 
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
-      {/* Heading + sub-head */}
-      <div className="mb-6 mt-14 md:mt-0">
-        <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
-          <span className="w-2 h-8 bg-[#2d7a3a] rounded-full mr-2" />
-          Leads Management
-        </h1>
-        <p className="text-sm text-[#4f6b4f] mt-1 ml-4">
-          Manage and track all your WhatsApp leads
-        </p>
+      {/* Heading + action buttons */}
+      <div className="mb-6 mt-16 md:mt-0">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
+              <span className="w-2 h-7 sm:h-8 bg-[#2d7a3a] rounded-full mr-2 flex-shrink-0" />
+              Leads Management
+            </h1>
+            <p className="text-sm text-[#4f6b4f] mt-1 ml-4">
+              Manage and track all your leads
+            </p>
+          </div>
+
+          {isOwner && (
+            <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+              <button
+                onClick={handleExport}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-[#f0f7ef] text-[#2d7a3a] border border-[#c9e5c3] px-4 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md"
+              >
+                <Download className="w-4 h-4" />
+                Export to Excel
+              </button>
+              <button
+                onClick={openAddModal}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Lead
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* 3 KPI Cards */}
-      <div
-        className="mb-6"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "1rem",
-        }}
-      >
+      {/* 4 KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <KpiCard icon={Users} label="Total Leads" value={stats.total} tone="blue" />
         <KpiCard
-          icon={Users}
-          label="Total Leads"
-          value={stats.total}
-          tone="blue"
+          icon={Star}
+          label="Follow Up"
+          value={stats.followUp}
+          tone="purple"
         />
         <KpiCard
           icon={UserPlus}
@@ -253,7 +421,7 @@ const normalizeStatus = (status) => {
       </div>
 
       {/* Filter bar */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 mb-6 shadow-sm">
+      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-3 sm:p-4 mb-6 shadow-sm">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6a7f6a]" />
@@ -266,16 +434,18 @@ const normalizeStatus = (status) => {
             />
           </div>
           <select
-            className="px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a] md:w-44"
+            className="px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a] md:w-52"
             value={filterStatus}
             onChange={(e) => {
               setFilterStatus(e.target.value);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
           >
-            <option value="">All Status</option>
-            <option value="completed">Completed</option>
-            <option value="active">Active</option>
+            {STATUS_FILTER_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
           </select>
           <input
             type="text"
@@ -292,8 +462,8 @@ const normalizeStatus = (status) => {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px]">
+        <div className="responsive-table-wrapper overflow-x-auto">
+          <table className="responsive-table w-full min-w-[1100px]">
             <thead>
               <tr className="bg-[#fafffa]">
                 <Th>Lead Name</Th>
@@ -336,12 +506,29 @@ const normalizeStatus = (status) => {
                       : DEFAULT_STATUS_STYLE.label,
                   };
                   const interested = lead.interested;
+                  const sourceLabel =
+                    lead.source === "manual" || lead.leadType === "manual"
+                      ? "Manual"
+                      : lead.leadType === "lister"
+                      ? "Lister"
+                      : "WhatsApp";
+                  const sourceTone =
+                    sourceLabel === "Manual"
+                      ? "bg-[#fef7e0] text-[#b68b40]"
+                      : sourceLabel === "Lister"
+                      ? "bg-[#f3e8ff] text-[#7a3aa8]"
+                      : "bg-[#e8f5e6] text-[#2d7a3a]";
+
                   return (
                     <tr
                       key={lead._id}
                       className="border-t border-[#eef5ec] hover:bg-[#fafffa] transition-colors"
                     >
-                      <td className="px-5 py-3">
+                      <td
+                        className="px-5 py-3"
+                        data-label="Lead"
+                        data-full="true"
+                      >
                         <p className="text-sm font-medium text-[#1a2e1a]">
                           {lead.name || "N/A"}
                         </p>
@@ -349,8 +536,9 @@ const normalizeStatus = (status) => {
                           <Phone className="w-3 h-3" /> {lead.phone}
                         </p>
                       </td>
-                      <td className="px-5 py-3">
-                        <p className="text-sm text-[#4f6b4f] flex items-center gap-1">
+
+                      <td className="px-5 py-3" data-label="City / Area">
+                        <p className="text-sm text-[#4f6b4f] flex items-center gap-1 justify-end">
                           <MapPin className="w-3 h-3 text-[#6a7f6a]" />{" "}
                           {lead.city || "—"}
                         </p>
@@ -360,14 +548,16 @@ const normalizeStatus = (status) => {
                           </p>
                         )}
                       </td>
-                      <td className="px-5 py-3">
-                        <p className="text-sm text-[#4f6b4f] flex items-center gap-1">
+
+                      <td className="px-5 py-3" data-label="Budget">
+                        <p className="text-sm text-[#4f6b4f] flex items-center gap-1 justify-end">
                           {lead.rentBudgetLabel || lead.budgetRange || "—"}
                         </p>
                       </td>
-                      <td className="px-5 py-3">
+
+                      <td className="px-5 py-3" data-label="Property Interest">
                         {interested ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 justify-end">
                             <Star className="w-3.5 h-3.5 text-[#f59e0b] fill-[#f59e0b]" />
                             <span className="text-sm text-[#1a2e1a] truncate max-w-[180px]">
                               {interested.title}
@@ -381,53 +571,56 @@ const normalizeStatus = (status) => {
                           <span className="text-xs text-[#6a7f6a]">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-3">
+
+                      <td className="px-5 py-3" data-label="Source">
                         <span
-                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
-                            lead.leadType === "lister"
-                              ? "bg-[#f3e8ff] text-[#7a3aa8]"
-                              : "bg-[#e8f5e6] text-[#2d7a3a]"
-                          }`}
+                          className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${sourceTone}`}
                         >
-                          {lead.leadType === "lister" ? "Lister" : "WhatsApp"}
+                          {sourceLabel}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
+
+                      <td className="px-5 py-3" data-label="Assigned To">
                         <span className="text-sm text-[#4f6b4f]">
                           {lead.assignedTo || (
                             <span className="text-[#6a7f6a]">Unassigned</span>
                           )}
                         </span>
                       </td>
-                      <td className="px-5 py-3 align-middle">
+
+                      <td
+                        className="px-5 py-3 align-middle"
+                        data-label="Status"
+                      >
                         <span
                           className={`
-      status-pill
-      inline-flex items-center justify-center
-      gap-1.5
-      min-w-[110px]
-      h-7
-      px-3
-      text-xs
-      font-semibold
-      rounded-full
-      border
-      whitespace-nowrap
-      ${s.pillClass}
-    `}
+                            status-pill
+                            inline-flex items-center justify-center
+                            gap-1.5
+                            min-w-[110px]
+                            h-7
+                            px-3
+                            text-xs
+                            font-semibold
+                            rounded-full
+                            border
+                            whitespace-nowrap
+                            ${s.pillClass}
+                          `}
                         >
                           <span
                             className={`
-        status-dot
-        w-1.5 h-1.5
-        rounded-full
-        flex-shrink-0
-      `}
+                              status-dot
+                              w-1.5 h-1.5
+                              rounded-full
+                              flex-shrink-0
+                            `}
                           />
                           {s.label}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
+
+                      <td className="px-5 py-3" data-label="Action">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => router.push(`/leads/${lead._id}`)}
@@ -456,7 +649,7 @@ const normalizeStatus = (status) => {
         </div>
 
         {pagination.pages > 1 && (
-          <div className="px-5 py-4 border-t border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between">
+          <div className="px-3 sm:px-5 py-4 border-t border-[#e8f0e6] bg-[#fafffa] flex items-center justify-between gap-2">
             <span className="text-xs text-[#6a7f6a]">
               Page {pagination.page} of {pagination.pages}
             </span>
@@ -483,6 +676,244 @@ const normalizeStatus = (status) => {
           </div>
         )}
       </div>
+
+      {/* ============ ADD LEAD MODAL ============ */}
+      {addOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backdropFilter: "blur(4px)",
+          }}
+          onClick={closeAddModal}
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e8f0e6] bg-[#fafffa] rounded-t-2xl sticky top-0 z-10">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-[#1a2e1a]">
+                  Add Lead Manually
+                </h2>
+                <p className="text-xs text-[#6a7f6a] mt-0.5">
+                  Create a new lead with all fields
+                </p>
+              </div>
+              <button
+                onClick={closeAddModal}
+                className="text-[#6a7f6a] hover:text-[#1a2e1a] flex-shrink-0 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Name" required>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, name: e.target.value }))
+                    }
+                    placeholder="e.g., Rajesh Kumar"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Phone" required>
+                  <input
+                    type="tel"
+                    value={form.phone}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, phone: e.target.value }))
+                    }
+                    placeholder="e.g., 9876543210"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Email">
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, email: e.target.value }))
+                    }
+                    placeholder="optional"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Lead Type">
+                  <select
+                    value={form.leadType}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, leadType: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  >
+                    {LEAD_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="City">
+                  <input
+                    type="text"
+                    value={form.city}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, city: e.target.value }))
+                    }
+                    placeholder="e.g., Indore"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Area">
+                  <input
+                    type="text"
+                    value={form.area}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, area: e.target.value }))
+                    }
+                    placeholder="e.g., Vijay Nagar"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Property Category">
+                  <select
+                    value={form.propertyCategory}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        propertyCategory: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  >
+                    {PROPERTY_CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Budget">
+                  <input
+                    type="text"
+                    value={form.budgetRange}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, budgetRange: e.target.value }))
+                    }
+                    placeholder="e.g., 50-75 L"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Rent Budget Label">
+                  <input
+                    type="text"
+                    value={form.rentBudgetLabel}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        rentBudgetLabel: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g., ₹15k–25k"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Timeline">
+                  <input
+                    type="text"
+                    value={form.timeline}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, timeline: e.target.value }))
+                    }
+                    placeholder="e.g., 1–3 months"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Furnishing">
+                  <input
+                    type="text"
+                    value={form.furnishing}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, furnishing: e.target.value }))
+                    }
+                    placeholder="e.g., semi_furnished"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Assigned To">
+                  <input
+                    type="text"
+                    value={form.assignedTo}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, assignedTo: e.target.value }))
+                    }
+                    placeholder="optional"
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  />
+                </Field>
+                <Field label="Current Status">
+                  <select
+                    value={form.currentStatus}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        currentStatus: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                  >
+                    {STATUS_FILTER_OPTIONS.filter((o) => o.value).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+
+              <Field label="Notes">
+                <textarea
+                  rows={3}
+                  value={form.notes}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, notes: e.target.value }))
+                  }
+                  placeholder="Optional notes..."
+                  className="w-full px-3 py-2 border border-[#e8f0e6] rounded-xl text-sm bg-[#fafffa] focus:outline-none focus:ring-2 focus:ring-[#2d7a3a]/20 focus:border-[#2d7a3a]"
+                />
+              </Field>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-5 py-4 border-t border-[#e8f0e6]">
+              <button
+                onClick={closeAddModal}
+                className="w-full sm:w-auto px-4 py-2 text-sm text-[#4f6b4f] hover:bg-[#f0f7ef] rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSave}
+                disabled={saving}
+                className="w-full sm:w-auto px-4 py-2 bg-[#2d7a3a] hover:bg-[#23682e] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Add Lead"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -500,25 +931,37 @@ function KpiCard({ icon: Icon, label, value, tone }) {
     blue: { bg: "bg-[#e6f0fb]", fg: "text-[#2a6ba8]" },
     amber: { bg: "bg-[#fef7e0]", fg: "text-[#b68b40]" },
     green: { bg: "bg-[#e8f5e6]", fg: "text-[#2d7a3a]" },
+    purple: { bg: "bg-[#f3e8ff]", fg: "text-[#7a3aa8]" },
   };
   const t = tones[tone] || tones.green;
   return (
-    <div className="bg-white rounded-2xl border border-[#e8f0e6] p-5 shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-4">
+    <div className="bg-white rounded-2xl border border-[#e8f0e6] p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-shadow duration-200 h-full flex items-center">
+      <div className="flex items-center gap-3 w-full min-w-0">
         <div
-          className={`w-11 h-11 ${t.bg} rounded-xl flex items-center justify-center flex-shrink-0`}
+          className={`w-10 h-10 sm:w-11 sm:h-11 ${t.bg} rounded-xl flex items-center justify-center flex-shrink-0`}
         >
-          <Icon className={`w-5 h-5 ${t.fg}`} />
+          <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${t.fg}`} />
         </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-[#6a7f6a] uppercase tracking-wider truncate">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] sm:text-[11px] font-medium text-[#6a7f6a] uppercase tracking-wider truncate">
             {label}
           </p>
-          <p className="text-2xl font-bold text-[#1a2e1a] leading-tight mt-0.5">
+          <p className="text-xl sm:text-2xl font-bold text-[#1a2e1a] leading-tight mt-0.5">
             {value}
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <div className="min-w-0">
+      <label className="block text-xs font-medium text-[#6a7f6a] uppercase tracking-wider mb-1">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      {children}
     </div>
   );
 }

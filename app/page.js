@@ -27,46 +27,81 @@ export default function Dashboard() {
   const [pendingVisits, setPendingVisits] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Chart data — kept static; replace with real data when you have a history endpoint
+  // Chart data — Leads vs Conversions comparison
   const chartData = {
     labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
     datasets: [
       {
-        label: 'Site Visits',
-        data: [8, 12, 15, 18, 22, 20],
+        label: 'Leads',
+        data: [12, 18, 24, 30, 36, 32],
         borderColor: '#2d7a3a',
-        backgroundColor: 'rgba(45, 122, 58, 0.05)',
-        borderWidth: 2.5, fill: true, tension: 0.3,
-        pointBackgroundColor: '#2d7a3a', pointBorderColor: '#fff',
-        pointBorderWidth: 2, pointRadius: 4,
+        backgroundColor: 'rgba(45, 122, 58, 0.08)',
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.3,
+        pointBackgroundColor: '#2d7a3a',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
       },
       {
         label: 'Conversions',
         data: [3, 5, 7, 9, 12, 11],
         borderColor: '#6fbf73',
-        backgroundColor: 'rgba(111, 191, 115, 0.05)',
-        borderWidth: 2.5, fill: true, tension: 0.3,
-        pointBackgroundColor: '#6fbf73', pointBorderColor: '#fff',
-        pointBorderWidth: 2, pointRadius: 4,
+        backgroundColor: 'rgba(111, 191, 115, 0.08)',
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.3,
+        pointBackgroundColor: '#6fbf73',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
       },
     ],
   };
 
   const chartOptions = {
-    responsive: true, maintainAspectRatio: false,
+    responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: true, position: 'top',
-        labels: { usePointStyle: true, pointStyle: 'circle', padding: 20, font: { size: 12, weight: '500', family: 'Inter' }, color: '#1e2a1e' },
+        display: true,
+        position: 'top',
+        align: 'end',
+        labels: {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          padding: 16,
+          font: { size: 11, weight: '500', family: 'Inter' },
+          color: '#1e2a1e',
+          boxWidth: 8,
+          boxHeight: 8,
+        },
       },
       tooltip: {
-        backgroundColor: 'rgba(255,255,255,0.95)', titleColor: '#1e2a1e', bodyColor: '#2d4a2d',
-        borderColor: '#e8f0e6', borderWidth: 1, padding: 12, cornerRadius: 8,
+        backgroundColor: 'rgba(255,255,255,0.98)',
+        titleColor: '#1e2a1e',
+        bodyColor: '#2d4a2d',
+        borderColor: '#e8f0e6',
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 8,
+        titleFont: { size: 12, weight: '600' },
+        bodyFont: { size: 12 },
       },
     },
     scales: {
-      y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false }, ticks: { font: { size: 11, family: 'Inter' }, color: '#6a7f6a' } },
-      x: { grid: { display: false }, ticks: { font: { size: 11, family: 'Inter' }, color: '#6a7f6a' } },
+      y: {
+        beginAtZero: true,
+        grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
+        ticks: { font: { size: 10, family: 'Inter' }, color: '#6a7f6a', padding: 6 },
+      },
+      x: {
+        grid: { display: false },
+        ticks: { font: { size: 10, family: 'Inter' }, color: '#6a7f6a', padding: 6 },
+      },
     },
     interaction: { intersect: false, mode: 'index' },
   };
@@ -121,120 +156,122 @@ export default function Dashboard() {
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a]">Dashboard</h1>
+      <div className="mb-6 mt-16 md:mt-0">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[#1a2e1a]">
+          Dashboard
+        </h1>
         <p className="text-sm text-[#4f6b4f] mt-1">Complete overview of your business</p>
       </div>
 
-      {/* Minimized Stat Cards — icon + label + number only */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* KPI Cards — moderate size, equal height, 2×2 on mobile, 4 across on desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <MiniStatCard icon={Users} label="Active Leads" value={stats.activeLeads} />
         <MiniStatCard icon={Calendar} label="Pending Site Visits" value={stats.pendingSiteVisits} />
         <MiniStatCard icon={Building2} label="Active Properties" value={stats.activeProperties} />
         <MiniStatCard icon={UserCheck} label="Converted Clients" value={stats.convertedClients} />
       </div>
 
-      {/* Recent Leads Table */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] mb-8 overflow-hidden shadow-sm">
-        <div className="px-5 py-4 border-b border-[#e8f0e6] flex items-center justify-between bg-[#fafffa]">
-          <div className="flex items-center gap-3">
-            <UserCircle className="w-4 h-4 text-[#2d7a3a]" />
-            <h2 className="text-sm font-semibold text-[#1a2e1a]">Recent New Leads</h2>
+      {/* Chart (60%) + Recent Leads (40%) — side-by-side on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-5 mb-6">
+        {/* Chart — spans 3 of 5 columns (60%) */}
+        <div className="lg:col-span-3 bg-white rounded-2xl border border-[#e8f0e6] p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-4 gap-2">
+            <h2 className="text-sm sm:text-base font-semibold text-[#1a2e1a] flex items-center gap-2 min-w-0">
+              <BarChart3 className="w-4 h-4 text-[#2d7a3a] flex-shrink-0" />
+              <span className="truncate">Leads vs Conversions</span>
+            </h2>
+            <span className="text-xs text-[#6a7f6a] bg-[#f0f7ef] px-3 py-1 rounded-full flex-shrink-0 whitespace-nowrap">
+              Last 6 months
+            </span>
           </div>
-          <Link href="/leads" className="text-xs font-medium text-[#2d7a3a] hover:text-[#23682e] transition-colors flex items-center gap-1">
-            View all <ArrowRight className="w-3 h-3" />
-          </Link>
+          <div className="h-[240px] sm:h-[280px] lg:h-[320px]">
+            <Line data={chartData} options={chartOptions} />
+          </div>
         </div>
 
-        {/* Mobile — stacked cards, no side-scrolling, everything readable at a glance */}
-        <div className="md:hidden divide-y divide-[#eef5ec]">
-          {recentLeads.length === 0 ? (
-            <div className="text-center py-8 text-[#6a7f6a] text-sm">
-              <FolderOpen className="w-4 h-4 inline-block mr-2" />
-              No leads found
+        {/* Recent Leads — spans 2 of 5 columns (40%) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm flex flex-col">
+          <div className="px-4 sm:px-5 py-3.5 border-b border-[#e8f0e6] flex items-center justify-between bg-[#fafffa]">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <UserCircle className="w-4 h-4 text-[#2d7a3a] flex-shrink-0" />
+              <h2 className="text-sm font-semibold text-[#1a2e1a] truncate">
+                Recent New Leads
+              </h2>
             </div>
-          ) : (
-            recentLeads.map((lead) => (
-              <div key={lead._id} className="px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-[#1a2e1a] truncate">{lead.name || 'N/A'}</p>
-                    <p className="text-xs text-[#6a7f6a] flex items-center gap-1 mt-0.5">
-                      <Phone className="w-3 h-3 flex-shrink-0" />
-                      {lead.phone}
-                    </p>
-                  </div>
-                  <span className={`flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-full ${
-                    lead.isCompleted ? 'bg-[#e8f5e6] text-[#2d7a3a]' : 'bg-[#fef7e0] text-[#b68b40]'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${lead.isCompleted ? 'bg-[#2d7a3a]' : 'bg-[#b68b40]'}`} />
-                    {lead.isCompleted ? 'Completed' : 'In Progress'}
-                  </span>
-                </div>
-                <p className="text-xs text-[#4f6b4f] mt-1.5">{getPropertyDisplay(lead)}</p>
-              </div>
-            ))
-          )}
-        </div>
+            <Link
+              href="/leads"
+              className="text-xs font-medium text-[#2d7a3a] hover:text-[#23682e] transition-colors flex items-center gap-1 flex-shrink-0"
+            >
+              View all <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
 
-        {/* Desktop / tablet — full table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full min-w-[500px]">
-            <thead>
-              <tr className="bg-[#fafffa]">
-                <th className="text-left px-5 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">Lead</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">Interested In</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-[#6a7f6a] uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentLeads.length === 0 ? (
-                <tr className="border-t border-[#eef5ec]">
-                  <td colSpan="3" className="text-center py-8 text-[#6a7f6a] text-sm">
-                    <FolderOpen className="w-4 h-4 inline-block mr-2" />
-                    No leads found
-                  </td>
-                </tr>
-              ) : (
-                recentLeads.map((lead) => (
-                  <tr key={lead._id} className="border-t border-[#eef5ec] hover:bg-[#fafffa] transition-colors">
-                    <td className="px-5 py-3">
-                      <p className="text-sm font-medium text-[#1a2e1a]">{lead.name || 'N/A'}</p>
-                      <p className="text-xs text-[#6a7f6a] flex items-center gap-1 mt-0.5">
-                        <Phone className="w-3 h-3" />
-                        {lead.phone}
+          <div className="divide-y divide-[#eef5ec] flex-1 overflow-y-auto">
+            {recentLeads.length === 0 ? (
+              <div className="text-center py-10 text-[#6a7f6a] text-sm">
+                <FolderOpen className="w-4 h-4 inline-block mr-2" />
+                No leads found
+              </div>
+            ) : (
+              recentLeads.map((lead) => (
+                <Link
+                  key={lead._id}
+                  href={`/leads/${lead._id}`}
+                  className="block px-4 sm:px-5 py-3 hover:bg-[#fafffa] transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[#1a2e1a] truncate group-hover:text-[#2d7a3a] transition-colors">
+                        {lead.name || 'N/A'}
                       </p>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-[#4f6b4f]">{getPropertyDisplay(lead)}</td>
-                    <td className="px-5 py-3">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full ${
-                        lead.isCompleted ? 'bg-[#e8f5e6] text-[#2d7a3a]' : 'bg-[#fef7e0] text-[#b68b40]'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${lead.isCompleted ? 'bg-[#2d7a3a]' : 'bg-[#b68b40]'}`} />
-                        {lead.isCompleted ? 'Completed' : 'In Progress'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      <p className="text-xs text-[#6a7f6a] flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{lead.phone}</span>
+                      </p>
+                    </div>
+                    <span
+                      className={`flex-shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded-full ${
+                        lead.isCompleted
+                          ? 'bg-[#e8f5e6] text-[#2d7a3a]'
+                          : 'bg-[#fef7e0] text-[#b68b40]'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          lead.isCompleted ? 'bg-[#2d7a3a]' : 'bg-[#b68b40]'
+                        }`}
+                      />
+                      {lead.isCompleted ? 'Done' : 'Active'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#4f6b4f] mt-1.5 truncate">
+                    {getPropertyDisplay(lead)}
+                  </p>
+                </Link>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Site Visits — DATE ONLY */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm mb-8">
-        <div className="px-5 py-4 border-b border-[#e8f0e6] flex items-center justify-between bg-[#fafffa]">
-          <div className="flex items-center gap-3">
-            <Clock className="w-4 h-4 text-[#2d7a3a]" />
-            <h2 className="text-sm font-semibold text-[#1a2e1a]">Pending Site Visits</h2>
+      {/* Pending Site Visits */}
+      <div className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm mb-6">
+        <div className="px-4 sm:px-5 py-4 border-b border-[#e8f0e6] flex items-center justify-between bg-[#fafffa]">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Clock className="w-4 h-4 text-[#2d7a3a] flex-shrink-0" />
+            <h2 className="text-sm font-semibold text-[#1a2e1a] truncate">
+              Pending Site Visits
+            </h2>
           </div>
-          <Link href="/site-visits" className="text-xs font-medium text-[#2d7a3a] hover:text-[#23682e] transition-colors flex items-center gap-1">
+          <Link
+            href="/site-visits"
+            className="text-xs font-medium text-[#2d7a3a] hover:text-[#23682e] transition-colors flex items-center gap-1 flex-shrink-0"
+          >
             View all <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
 
-        {/* Mobile — stacked cards, no side-scrolling, everything readable at a glance */}
+        {/* Mobile — stacked cards */}
         <div className="md:hidden divide-y divide-[#eef5ec]">
           {pendingVisits.length === 0 ? (
             <div className="text-center py-8 text-[#6a7f6a] text-sm">
@@ -245,7 +282,9 @@ export default function Dashboard() {
             pendingVisits.map((visit) => (
               <div key={visit._id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-[#1a2e1a] truncate">{visit.leadName || 'N/A'}</p>
+                  <p className="text-sm font-medium text-[#1a2e1a] truncate">
+                    {visit.leadName || 'N/A'}
+                  </p>
                   <VisitStatusBadge status={visit.status} />
                 </div>
                 <p className="text-xs text-[#4f6b4f] mt-1">{visit.propertyTitle || 'N/A'}</p>
@@ -258,10 +297,12 @@ export default function Dashboard() {
                     {visit.rawPreferredDateTime
                       ? visit.rawPreferredDateTime
                       : visit.scheduledDate
-                        ? new Date(visit.scheduledDate).toLocaleDateString('en-US', {
-                            month: 'short', day: 'numeric', year: 'numeric',
-                          })
-                        : 'N/A'}
+                      ? new Date(visit.scheduledDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : 'N/A'}
                   </span>
                 </div>
                 <p className="text-xs text-[#6a7f6a] mt-1">
@@ -272,7 +313,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Desktop / tablet — full table */}
+        {/* Desktop table */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[700px]">
             <thead>
@@ -295,45 +336,46 @@ export default function Dashboard() {
                 </tr>
               ) : (
                 pendingVisits.map((visit) => (
-                  <tr key={visit._id} className="border-t border-[#eef5ec] hover:bg-[#fafffa] transition-colors">
-                    <td className="px-5 py-3 text-sm font-medium text-[#1a2e1a]">{visit.leadName || 'N/A'}</td>
-                    <td className="px-5 py-3 text-sm text-[#4f6b4f]">{visit.propertyTitle || 'N/A'}</td>
+                  <tr
+                    key={visit._id}
+                    className="border-t border-[#eef5ec] hover:bg-[#fafffa] transition-colors"
+                  >
+                    <td className="px-5 py-3 text-sm font-medium text-[#1a2e1a]">
+                      {visit.leadName || 'N/A'}
+                    </td>
+                    <td className="px-5 py-3 text-sm text-[#4f6b4f]">
+                      {visit.propertyTitle || 'N/A'}
+                    </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-1">
                         <Phone className="w-3 h-3 text-[#6a7f6a]" />
-                        <span className="text-sm text-[#4f6b4f]">{visit.leadPhone || 'N/A'}</span>
+                        <span className="text-sm text-[#4f6b4f]">
+                          {visit.leadPhone || 'N/A'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-5 py-3 text-sm text-[#4f6b4f]">
                       {visit.rawPreferredDateTime
                         ? visit.rawPreferredDateTime
                         : visit.scheduledDate
-                          ? new Date(visit.scheduledDate).toLocaleDateString('en-US', {
-                              month: 'short', day: 'numeric', year: 'numeric',
-                            })
-                          : 'N/A'}
+                        ? new Date(visit.scheduledDate).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'N/A'}
                     </td>
-                    <td className="px-5 py-3 text-sm text-[#4f6b4f]">{visit.channelPartnerName || 'Not assigned'}</td>
-                    <td className="px-5 py-3"><VisitStatusBadge status={visit.status} /></td>
+                    <td className="px-5 py-3 text-sm text-[#4f6b4f]">
+                      {visit.channelPartnerName || 'Not assigned'}
+                    </td>
+                    <td className="px-5 py-3">
+                      <VisitStatusBadge status={visit.status} />
+                    </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Chart Section */}
-      <div className="bg-white rounded-2xl border border-[#e8f0e6] p-5 shadow-sm mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-[#1a2e1a] flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#2d7a3a]" />
-            Site Visit Analytics
-          </h2>
-          <span className="text-xs text-[#6a7f6a] bg-[#f0f7ef] px-3 py-1 rounded-full">Last 6 months</span>
-        </div>
-        <div className="h-[220px] md:h-[260px]">
-          <Line data={chartData} options={chartOptions} />
         </div>
       </div>
     </div>
@@ -344,14 +386,18 @@ export default function Dashboard() {
 
 function MiniStatCard({ icon: Icon, label, value }) {
   return (
-    <div className="bg-white rounded-2xl border border-[#e8f0e6] p-4 shadow-sm hover:shadow-md transition-shadow duration-200">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 bg-[#e8f5e6] rounded-xl flex items-center justify-center flex-shrink-0">
-          <Icon className="w-4 h-4 text-[#2d7a3a]" />
+    <div className="bg-white rounded-2xl border border-[#e8f0e6] p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-shadow duration-200 h-full flex items-center">
+      <div className="flex items-center gap-3 w-full min-w-0">
+        <div className="w-10 h-10 sm:w-11 sm:h-11 bg-[#e8f5e6] rounded-xl flex items-center justify-center flex-shrink-0">
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#2d7a3a]" />
         </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-medium text-[#6a7f6a] uppercase tracking-wider truncate">{label}</p>
-          <p className="text-xl font-bold text-[#1a2e1a] leading-tight">{value}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] sm:text-[11px] font-medium text-[#6a7f6a] uppercase tracking-wider truncate">
+            {label}
+          </p>
+          <p className="text-xl sm:text-2xl font-bold text-[#1a2e1a] leading-tight mt-0.5">
+            {value}
+          </p>
         </div>
       </div>
     </div>
@@ -368,7 +414,9 @@ function VisitStatusBadge({ status }) {
   };
   const s = map[status] || map.pending;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full ${s.bg} ${s.text}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-[10px] sm:text-xs font-medium rounded-full whitespace-nowrap flex-shrink-0 ${s.bg} ${s.text}`}
+    >
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {s.label}
     </span>

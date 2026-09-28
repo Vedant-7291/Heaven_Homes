@@ -112,6 +112,8 @@ const EMPTY_FORM = {
   location: '',
   tenantPreferences: [],
   foodPreferences: [],
+  brokerage: false,          // ← new
+  brokerageAmount: '', 
 };
 
 export default function PropertyModal({ isOpen, onClose, onSave, property, isOwner = false }) {
@@ -158,6 +160,8 @@ export default function PropertyModal({ isOpen, onClose, onSave, property, isOwn
         location: property.location || '',
         tenantPreferences: property.tenantPreferences || [],
 foodPreferences: property.foodPreferences || [],
+brokerage: property.brokerage || false,
+brokerageAmount: property.brokerageAmount || '',
       });
     } else {
       setFormData(EMPTY_FORM);
@@ -246,6 +250,8 @@ foodPreferences: property.foodPreferences || [],
       foodPreferences: Array.isArray(formData.foodPreferences) ? formData.foodPreferences : [],
       areaSqft: Number(formData.areaSqft) || 0,
       location: `${formData.area}, ${formData.city}`,
+       brokerage: !!formData.brokerage,                                          // ← new
+  brokerageAmount: formData.brokerage ? Number(formData.brokerageAmount) || 0 : 0,  // ← new
       
     };
 
@@ -530,6 +536,40 @@ foodPreferences: property.foodPreferences || [],
     ))}
   </div>
 </div>
+
+{/* Brokerage */}
+<div className="md:col-span-3">
+  <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={!!formData.brokerage}
+      onChange={(e) =>
+        setFormData((p) => ({
+          ...p,
+          brokerage: e.target.checked,
+          brokerageAmount: e.target.checked ? p.brokerageAmount : '',
+        }))
+      }
+      className="w-4 h-4 text-[#2d7a3a] border-gray-300 rounded focus:ring-[#2d7a3a]"
+    />
+    Brokerage Applicable
+  </label>
+
+  {formData.brokerage && (
+    <div className="mt-3 max-w-xs">
+      <Field label="Brokerage Amount (₹)">
+        <input
+          type="number"
+          name="brokerageAmount"
+          value={formData.brokerageAmount}
+          onChange={handleChange}
+          placeholder="e.g., 22000"
+          className={INPUT_CLASS}
+        />
+      </Field>
+    </div>
+  )}
+</div>
               </div>
             )}
 
@@ -559,6 +599,39 @@ foodPreferences: property.foodPreferences || [],
                     {FLOORS.map((f) => <option key={f} value={f}>{f}</option>)}
                   </select>
                 </Field>
+                {/* Brokerage */}
+<div className="md:col-span-3">
+  <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={!!formData.brokerage}
+      onChange={(e) =>
+        setFormData((p) => ({
+          ...p,
+          brokerage: e.target.checked,
+          brokerageAmount: e.target.checked ? p.brokerageAmount : '',
+        }))
+      }
+      className="w-4 h-4 text-[#2d7a3a] border-gray-300 rounded focus:ring-[#2d7a3a]"
+    />
+    Brokerage Applicable
+  </label>
+
+  {formData.brokerage && (
+    <div className="mt-3 max-w-xs">
+      <Field label="Brokerage Amount (₹)">
+        <input
+          type="number"
+          name="brokerageAmount"
+          value={formData.brokerageAmount}
+          onChange={handleChange}
+          placeholder="e.g., 22000"
+          className={INPUT_CLASS}
+        />
+      </Field>
+    </div>
+  )}
+</div>
               </div>
             )}
 

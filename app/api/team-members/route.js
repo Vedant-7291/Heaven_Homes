@@ -1,5 +1,8 @@
 import dbConnect, { isDbConnected } from '@/lib/mongodb';
 import TeamMember from '@/lib/models/TeamMember';
+import { encryptPassword } from '@/lib/auth/password-crypto';
+import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
+import { decryptPassword } from '@/lib/auth/password-crypto';
 import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 
@@ -7,8 +10,8 @@ function escapeRegex(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function safeMember(m) {
-  return {
+function safeMember(m, { revealPassword = false } = {}) {
+  const base = {
     _id: m._id,
     name: m.name,
     role: m.role,
@@ -17,6 +20,10 @@ function safeMember(m) {
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   };
+  if (revealPassword) {
+    base.password = decryptPassword(m.passwordEnc || '');
+  }
+  return base;
 }
 
 // ---------- GET ----------
@@ -48,16 +55,20 @@ const activeParam = searchParams.get('active');
 if (activeParam === 'true') query.active = true;
 else if (activeParam === 'false') query.active = false;
 
-    const [members, total] = await Promise.all([
-      TeamMember.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      TeamMember.countDocuments(query),
-    ]);
+    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+const session = verifySessionToken(token);
+const isOwner = session?.role === 'owner';
 
-    return NextResponse.json({
-      success: true,
-      data: members.map(safeMember),
-      pagination: { total, page, limit, pages: Math.ceil(total / limit) },
-    });
+const [members, total] = await Promise.all([
+  TeamMember.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+  TeamMember.countDocuments(query),
+]);
+
+return NextResponse.json({
+  success: true,
+  data: members.map((m) => safeMember(m, { revealPassword: isOwner })),
+  pagination: { total, page, limit, pages: Math.ceil(total / limit) },
+});
   } catch (error) {
     console.error('[team-members] GET error:', error);
     return NextResponse.json(
@@ -99,13 +110,16 @@ export async function POST(request) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const passwordEnc = encryptPassword(password);
 
     const member = await TeamMember.create({
       name,
       username,
       role,
       passwordHash,
-      password: '', // never store plaintext on new records
+      passwordEnc,
+      password: '',
+       // never store plaintext on new records
     });
 
     return NextResponse.json(
