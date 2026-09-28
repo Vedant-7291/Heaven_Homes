@@ -264,7 +264,7 @@ export default function PropertiesPage() {
       )}
 
       {/* Page Header */}
-      <div className="mb-6 mt-14 md:mt-0">
+      <div className="mb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
@@ -402,29 +402,44 @@ export default function PropertiesPage() {
           </p>
         </div>
       ) : (
-       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
-{properties.map((property) => {
+       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 items-stretch">
+{properties.map((property, index) => {
   const isSold = property.status === 'sold';
   const allFeatures = Array.isArray(property.features) ? property.features : [];
-  const features = allFeatures.slice(0, 3);
+  const features = allFeatures.slice(0, 2);
   const extra = allFeatures.length - features.length;
   const showImage = property.imageUrl && !imageErrors[property._id];
 
+  const propertyIdLabel =
+    property.propertyId ||
+    property.listingId ||
+    property.code ||
+    `P-${String((pagination.page - 1) * pagination.limit + index + 3021).padStart(4, '0')}`;
+
+  // Spec pills — same simple outlined-pill style as the reference design,
+  // only rendered when the data exists so the row never shows empty pills.
+  const specPills = [
+    getSubTypeLabel(property.propertySubType),
+    property.configuration && property.configuration !== 'commercial'
+      ? String(property.configuration).toUpperCase().replace('BHK', ' BHK')
+      : null,
+    property.areaSqft ? `${property.areaSqft} Sq Ft` : null,
+  ].filter(Boolean);
+
   // Fixed heights — change these once and every card updates
-  const IMAGE_HEIGHT = 300;        // px — image wrapper
+  const IMAGE_HEIGHT = 200;        // px — image wrapper
   const TITLE_MIN_HEIGHT = 44;     // px — 2 lines of text-sm at leading-snug
-  const DETAILS_MIN_HEIGHT = 46;   // px — 2 rows of the details grid
-  const FEATURES_MIN_HEIGHT = 26;  // px — one row of feature chips
 
   return (
     <div
       key={property._id}
       className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 group flex flex-col h-full"
     >
-      {/* ---------- IMAGE — fixed width & height, no exceptions ---------- */}
+      {/* ---------- IMAGE — fixed height, no exceptions ---------- */}
       <div
-        className="relative bg-[#f0f7ef] overflow-hidden flex-shrink-0"
+        className="relative bg-[#f0f7ef] overflow-hidden flex-shrink-0 cursor-pointer"
         style={{ height: `${IMAGE_HEIGHT}px`, width: '100%' }}
+        onClick={() => showImage && setSelectedImage(property.imageUrl)}
       >
         {showImage ? (
           <img
@@ -450,9 +465,9 @@ export default function PropertiesPage() {
           </div>
         )}
 
-        {/* Status badge */}
+        {/* Status badge — top-left */}
         <span
-          className={`absolute top-2 right-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-semibold shadow-sm ${
+          className={`absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold shadow-sm ${
             isSold ? 'bg-[#fde8e8] text-[#c0392b]' : 'bg-[#e8f5e6] text-[#2d7a3a]'
           }`}
         >
@@ -464,134 +479,100 @@ export default function PropertiesPage() {
           {isSold ? 'Sold' : 'Available'}
         </span>
 
-        {showImage && (
-          <button
-            onClick={() => setSelectedImage(property.imageUrl)}
-            className="absolute bottom-2 right-2 p-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
-            aria-label="Preview image"
-          >
-            <ImageIcon className="w-3.5 h-3.5 text-[#1a2e1a]" />
-          </button>
-        )}
+        {/* Edit pencil — always-visible circular overlay, top-right */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleEditProperty(property);
+          }}
+          className="absolute top-2.5 right-2.5 p-2 bg-white/95 backdrop-blur-sm rounded-full shadow-sm hover:bg-white transition-colors"
+          aria-label="Edit property"
+        >
+          <Edit className="w-3.5 h-3.5 text-[#1a2e1a]" />
+        </button>
       </div>
 
       {/* ---------- CONTENT ---------- */}
-      <div className="p-3 flex-1 flex flex-col">
-        {/* Category label — fixed line */}
-        <p className="text-[10px] text-[#6a7f6a] uppercase tracking-wide font-medium mb-0.5 truncate">
-          {getCategoryLabel(property)}
-        </p>
+      <div className="p-4 flex-1 flex flex-col">
+        {/* Property ID + category — same row */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="text-xs text-[#6a7f6a] font-medium truncate">{propertyIdLabel}</span>
+          <span className="text-[11px] font-medium text-[#4f6b4f] bg-[#f0f7ef] border border-[#e8f0e6] px-2.5 py-1 rounded-full whitespace-nowrap">
+            {getCategoryLabel(property)}
+          </span>
+        </div>
 
         {/* Title — reserved for 2 lines */}
         <h3
-          className="text-sm font-semibold text-[#1a2e1a] mb-1 leading-snug line-clamp-2"
+          className="text-base font-semibold text-[#1a2e1a] mb-1.5 leading-snug line-clamp-2"
           style={{ minHeight: `${TITLE_MIN_HEIGHT}px` }}
         >
           {property.title || 'Untitled Property'}
         </h3>
 
-        {/* Location + Price */}
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-1 text-[11px] text-[#4f6b4f] min-w-0">
-            <MapPin className="w-3 h-3 text-[#6a7f6a] flex-shrink-0" />
-            <span className="truncate">
-              {[property.area, property.city].filter(Boolean).join(', ') || '—'}
-            </span>
-          </div>
-          <span className="text-sm font-bold text-[#1a2e1a] whitespace-nowrap">
-            {formatPrice(property.price, property.propertyType)}
+        {/* Location */}
+        <div className="flex items-center gap-1 text-sm text-[#4f6b4f] mb-3 min-w-0">
+          <MapPin className="w-3.5 h-3.5 text-[#6a7f6a] flex-shrink-0" />
+          <span className="truncate">
+            {[property.area, property.city].filter(Boolean).join(', ') || '—'}
           </span>
         </div>
 
-        {/* Details — always 4 cells, missing ones hidden but reserving space */}
-        <div
-          className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-[#4f6b4f] mb-2 content-start"
-          style={{ minHeight: `${DETAILS_MIN_HEIGHT}px` }}
-        >
-          {/* Type (always present) */}
-          <div className="flex items-center gap-1 min-w-0">
-            <span className="text-[#6a7f6a]">🏠</span>
-            <span className="truncate">{getSubTypeLabel(property.propertySubType)}</span>
-          </div>
-
-          {/* Area */}
-          {property.areaSqft ? (
-            <div className="flex items-center gap-1 min-w-0">
-              <span className="text-[#6a7f6a]">📐</span>
-              <span className="truncate">{property.areaSqft} Sq Ft</span>
-            </div>
-          ) : (
-            <div className="invisible text-[11px]">—</div>
-          )}
-
-          {/* Configuration */}
-          {property.configuration && property.configuration !== 'commercial' ? (
-            <div className="flex items-center gap-1 min-w-0">
-              <span className="text-[#6a7f6a]">🛏</span>
-              <span className="truncate">
-                {String(property.configuration).toUpperCase().replace('BHK', ' BHK')}
-              </span>
-            </div>
-          ) : (
-            <div className="invisible text-[11px]">—</div>
-          )}
-
-          {/* Facing */}
-          {property.facing ? (
-            <div className="flex items-center gap-1 min-w-0">
-              <span className="text-[#6a7f6a]">🧭</span>
-              <span className="truncate">Facing: {property.facing}</span>
-            </div>
-          ) : (
-            <div className="invisible text-[11px]">—</div>
-          )}
-        </div>
-
-        {/* Features — reserved min height even when empty */}
-        <div
-          className="flex flex-wrap gap-1 mb-2 overflow-hidden"
-          style={{ minHeight: `${FEATURES_MIN_HEIGHT}px`, maxHeight: `${FEATURES_MIN_HEIGHT}px` }}
-        >
-          {features.length > 0 ? (
-            <>
-              {features.map((f, i) => (
-                <span
-                  key={`${property._id}-feat-${i}`}
-                  className="text-[10px] text-[#2d7a3a] bg-[#e8f5e6] px-1.5 py-0.5 rounded-full whitespace-nowrap"
-                >
-                  {f}
-                </span>
-              ))}
-              {extra > 0 && (
-                <span className="text-[10px] text-[#6a7f6a] bg-[#f0f7ef] px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                  +{extra}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-[10px] text-transparent select-none">—</span>
-          )}
-        </div>
-
-        {/* Actions — pinned to bottom */}
-        <div className="flex items-center gap-1.5 pt-2 mt-auto border-t border-[#eef5ec]">
-          <button
-            onClick={() => handleEditProperty(property)}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-[#2d7a3a] bg-[#e8f5e6] hover:bg-[#d6ecd3] rounded-lg transition-colors"
-            aria-label="Edit property"
-          >
-            <Edit className="w-3.5 h-3.5" />
-            Edit
-          </button>
-          { isOwner && (
-            <button
-              onClick={() => handleDeleteProperty(property._id)}
-              className="p-1.5 text-[#6a7f6a] hover:text-red-600 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-              title="Delete Property"
-              aria-label="Delete property"
+        {/* Spec pills — type / configuration / area, plus any extra features */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {specPills.map((label, i) => (
+            <span
+              key={`${property._id}-spec-${i}`}
+              className="text-[11px] text-[#4f6b4f] bg-[#fafffa] border border-[#e8f0e6] px-2.5 py-1 rounded-full whitespace-nowrap"
             >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>)}
+              {label}
+            </span>
+          ))}
+          {features.map((f, i) => (
+            <span
+              key={`${property._id}-feat-${i}`}
+              className="text-[11px] text-[#2d7a3a] bg-[#e8f5e6] px-2.5 py-1 rounded-full whitespace-nowrap"
+            >
+              {f}
+            </span>
+          ))}
+          {extra > 0 && (
+            <span className="text-[11px] text-[#6a7f6a] bg-[#f0f7ef] px-2.5 py-1 rounded-full whitespace-nowrap">
+              +{extra}
+            </span>
+          )}
+        </div>
+
+        {/* Price + Actions — pinned to bottom, same row */}
+        <div className="flex items-center justify-between gap-3 pt-3 mt-auto border-t border-[#eef5ec]">
+          <div className="min-w-0">
+            <p className="text-lg font-bold text-[#1a2e1a] truncate">
+              {formatPrice(property.price, property.propertyType)}
+            </p>
+            {property.facing && (
+              <p className="text-xs text-[#6a7f6a] mt-0.5 truncate">{property.facing} facing</p>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={() => handleEditProperty(property)}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-[#2d7a3a] border border-[#e8f0e6] hover:bg-[#f0f7ef] hover:border-[#2d7a3a] rounded-xl transition-colors"
+              aria-label="Edit property"
+            >
+              <Edit className="w-3.5 h-3.5" />
+              Edit
+            </button>
+            {isOwner && (
+              <button
+                onClick={() => handleDeleteProperty(property._id)}
+                className="p-2 text-[#6a7f6a] hover:text-red-600 hover:bg-red-50 rounded-xl transition-all flex-shrink-0"
+                title="Delete Property"
+                aria-label="Delete property"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

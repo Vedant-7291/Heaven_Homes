@@ -184,7 +184,7 @@ export default function LeadAssignmentPage() {
   return (
     <div className="p-4 md:p-6 bg-[#f8faf7] min-h-screen">
       {/* Header — one button only, top-right */}
-      <div className="mb-6 mt-14 md:mt-0">
+      <div className="mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-semibold text-[#1a2e1a] flex items-center gap-2">
@@ -240,7 +240,76 @@ export default function LeadAssignmentPage() {
 
       {/* Leads table */}
       <div className="bg-white rounded-2xl border border-[#e8f0e6] overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+
+        {/* Mobile — stacked cards, everything readable at a glance, no side-scrolling */}
+        <div className="md:hidden divide-y divide-[#eef5ec]">
+          {loading ? (
+            <div className="flex flex-col items-center gap-3 py-12">
+              <div className="w-8 h-8 border-3 border-[#2d7a3a] border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-[#6a7f6a]">Loading leads...</p>
+            </div>
+          ) : filteredLeads.length === 0 ? (
+            <div className="text-center py-12 text-[#6a7f6a] text-sm">
+              <FolderOpen className="w-5 h-5 inline-block mr-2 mb-0.5" />
+              No leads found
+            </div>
+          ) : (
+            filteredLeads.map((lead) => {
+              const s = STATUS_MAP[lead.currentStatus] || STATUS_MAP.new;
+              return (
+                <div key={lead._id} className="px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-[#1a2e1a] truncate">{lead.name || 'N/A'}</p>
+                    <span className={`flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-full ${s.tone}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                      {s.label}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-[#4f6b4f] flex items-center gap-1 mt-1">
+                    <Phone className="w-3 h-3 text-[#6a7f6a]" /> {lead.phone}
+                  </p>
+
+                  {lead.city && (
+                    <p className="text-xs text-[#4f6b4f] flex items-center gap-1 mt-1">
+                      <MapPin className="w-3 h-3 text-[#6a7f6a]" />
+                      {lead.city}{lead.area ? ` · ${lead.area}` : ''}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-between mt-2">
+                    {lead.assignedTo ? (
+                      <span className="text-xs text-[#1a2e1a] font-medium">{lead.assignedTo}</span>
+                    ) : (
+                      <span className="text-xs text-[#6a7f6a] italic">Unassigned</span>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => openEditLeadModal(lead)}
+                        title="Edit assignment"
+                        className="p-1.5 rounded-lg border border-[#e8f0e6] hover:bg-[#f0f7ef] hover:border-[#2d7a3a] transition-colors group"
+                      >
+                        <Pencil className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#2d7a3a]" />
+                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => handleDeleteLead(lead)}
+                          title="Delete lead"
+                          className="p-1.5 rounded-lg border border-[#e8f0e6] hover:bg-[#fde8e8] hover:border-[#c0392b] transition-colors group"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-[#6a7f6a] group-hover:text-[#c0392b]" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop / tablet — full table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[1000px]">
             <thead>
               <tr className="bg-[#fafffa]">
