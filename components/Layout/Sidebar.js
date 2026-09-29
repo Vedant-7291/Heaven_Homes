@@ -28,15 +28,23 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
     { name: 'Property Management', path: '/properties', icon: Building2 },
    
     { name: 'Site Visit Management', path: '/site-visits', icon: Calendar },
-    { name: 'Rent Out Property Requests', path: '/rent-out', icon: Home },
-   
+    ...(
+      isOwner
+        ? [{ name: 'Rent Out Property Requests', path: '/rent-out', icon: Home }]
+        : []
+    ),
+    // Owner-only — channel partners don't assign leads
     ...(isOwner
-      ? [{ name: 'Manage Team & Role-Based Access', path: '/settings/team', icon: Shield },
-         { name: 'Lead Assignment', path: '/leads/assign', icon: UserPlus },
-         { name: 'Activity Log', path: '/activity-log', icon: Activity },
-      ]
-      : []), 
-    
+      ? [{ name: 'Lead Assignment', path: '/leads/assign', icon: UserPlus }]
+      : []),
+    // Owner-only — team management is admin-level
+    ...(isOwner
+      ? [{ name: 'Manage Team & Role-Based Access', path: '/settings/team', icon: Shield }]
+      : []),
+    // Owner-only — the scoped world doesn't need partner activity logs here
+    ...(isOwner
+      ? [{ name: 'Activity Log', path: '/activity-log', icon: Activity }]
+      : []),
   ];
 
   const handleLogout = async () => {
@@ -54,7 +62,6 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
 
   return (
     <>
-      {/* Mobile overlay */}
       {isSidebarOpen && isMobile && (
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
@@ -62,7 +69,6 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
         />
       )}
 
-   
       <aside
         className={`
           flex flex-col flex-shrink-0
@@ -74,41 +80,34 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
           ${isSidebarOpen ? 'md:w-72' : 'md:w-20'}
         `}
       >
-        {/* Header with Logo */}
         <div className="py-6 px-4 border-b-2 border-gray-600 flex-shrink-0">
-       {isSidebarOpen ? (
-  <div className="flex items-center gap-3.5">
-    {/* Logo — sized to match the head+subhead block on the right */}
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img
-      src="../../../logo-heaven.png"
-      alt="Heaven Homes"
-      className="w-14 h-14 object-contain flex-shrink-0 border border-white/20 rounded-lg"
-    />
-
-    {/* Head + subhead stacked vertically */}
-    <div className="flex flex-col justify-center min-w-0">
-      <span className="text-white font-bold text-xl tracking-wide leading-tight">
-        Heaven Homes
-      </span>
-      <span className="text-white/60 text-[11px] font-light tracking-wider leading-tight mt-1">
-        Give your dreams a new address
-      </span>
-    </div>
-  </div>
-) : (
-  <div className="flex justify-center">
-    {/* eslint-disable-next-line @next/next/no-img-element */}
-    <img
-      src="../../../logo-heaven.png"
-      alt="Heaven Homes"
-      className="w-11 h-11 object-contain"
-    />
-  </div>
-)}
+          {isSidebarOpen ? (
+            <div className="flex items-center gap-3.5">
+              <img
+                src="../../../logo-heaven.png"
+                alt="Heaven Homes"
+                className="w-14 h-14 object-contain flex-shrink-0 border border-white/20 rounded-lg"
+              />
+              <div className="flex flex-col justify-center min-w-0">
+                <span className="text-white font-bold text-xl tracking-wide leading-tight">
+                  Heaven Homes
+                </span>
+                <span className="text-white/60 text-[11px] font-light tracking-wider leading-tight mt-1">
+                  Give your dreams a new address
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <img
+                src="../../../logo-heaven.png"
+                alt="Heaven Homes"
+                className="w-11 h-11 object-contain"
+              />
+            </div>
+          )}
         </div>
 
-        {/* Workspace Title */}
         {isSidebarOpen && (
           <div className="px-4 pt-4 pb-2 flex-shrink-0">
             <p className="text-white/40 text-[11px] uppercase tracking-wider font-semibold">
@@ -117,7 +116,6 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
           </div>
         )}
 
-        {/* Navigation */}
         <nav className="flex-1 px-3 py-3 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {menuItems.map((item) => {
             const isActive = pathname === item.path;
@@ -135,9 +133,7 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
               >
                 <Icon
                   className={`w-[18px] h-[18px] flex-shrink-0 ${
-                    isActive
-                      ? 'text-white'
-                      : 'text-white/60 group-hover:text-white'
+                    isActive ? 'text-white' : 'text-white/60 group-hover:text-white'
                   }`}
                 />
                 {isSidebarOpen && (
@@ -150,7 +146,6 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
           })}
         </nav>
 
-        {/* Bottom section — user info + logout */}
         <div className="flex-shrink-0 border-t border-gray-600 bg-[#092b1f]">
           {isSidebarOpen ? (
             <div className="p-3 space-y-2.5">

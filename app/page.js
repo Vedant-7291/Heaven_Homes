@@ -26,14 +26,19 @@ export default function Dashboard() {
   const [recentLeads, setRecentLeads] = useState([]);
   const [pendingVisits, setPendingVisits] = useState([]);
   const [loading, setLoading] = useState(true);
+    const [chartHistory, setChartHistory] = useState({
+    labels: [],
+    leads: [],
+    conversions: [],
+  });
 
-  // Chart data — Leads vs Conversions comparison
+  // Chart data — built from real /api/leads/history response
   const chartData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    labels: chartHistory.labels,
     datasets: [
       {
         label: 'Leads',
-        data: [12, 18, 24, 30, 36, 32],
+        data: chartHistory.leads,
         borderColor: '#2d7a3a',
         backgroundColor: 'rgba(45, 122, 58, 0.08)',
         borderWidth: 2.5,
@@ -47,7 +52,7 @@ export default function Dashboard() {
       },
       {
         label: 'Conversions',
-        data: [3, 5, 7, 9, 12, 11],
+        data: chartHistory.conversions,
         borderColor: '#6fbf73',
         backgroundColor: 'rgba(111, 191, 115, 0.08)',
         borderWidth: 2.5,
@@ -106,28 +111,42 @@ export default function Dashboard() {
     interaction: { intersect: false, mode: 'index' },
   };
 
-  useEffect(() => {
+   useEffect(() => {
     (async () => {
       try {
-        const [statsRes, leadsRes, visitsRes] = await Promise.all([
+        const [statsRes, leadsRes, visitsRes, historyRes] = await Promise.all([
           fetch('/api/leads/stats').then((r) => r.json()).catch(() => ({})),
           fetch('/api/leads?limit=5').then((r) => r.json()).catch(() => ({})),
           fetch('/api/site-visits?limit=5').then((r) => r.json()).catch(() => ({})),
+          fetch('/api/leads/history?months=6').then((r) => r.json()).catch(() => ({})),
         ]);
 
         setStats({
           activeLeads: statsRes?.data?.active ?? 0,
-          convertedClients: statsRes?.data?.completed ?? 0,
+          convertedClients: statsRes?.data?.converted ?? 0,
           activeProperties: statsRes?.data?.byCategory
             ? (statsRes.data.byCategory.purchase || 0) +
               (statsRes.data.byCategory.rent || 0) +
               (statsRes.data.byCategory.rentOut || 0)
             : 0,
-          pendingSiteVisits: visitsRes?.data?.filter((v) => v.status === 'pending').length ?? 0,
+          pendingSiteVisits:
+            visitsRes?.data?.filter((v) => v.status === 'pending').length ?? 0,
         });
 
         setRecentLeads(leadsRes?.data || []);
-        setPendingVisits((visitsRes?.data || []).filter((v) => v.status !== 'completed').slice(0, 5));
+        setPendingVisits(
+          (visitsRes?.data || [])
+            .filter((v) => v.status !== 'completed')
+            .slice(0, 5)
+        );
+
+        if (historyRes?.success && historyRes.data) {
+          setChartHistory({
+            labels: historyRes.data.labels || [],
+            leads: historyRes.data.leads || [],
+            conversions: historyRes.data.conversions || [],
+          });
+        }
       } catch (err) {
         console.error('Dashboard fetch error:', err);
       } finally {

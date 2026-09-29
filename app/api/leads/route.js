@@ -1,7 +1,8 @@
 import dbConnect, { isDbConnected } from '@/lib/mongodb';
 import Lead from '@/lib/models/Lead';
-import { logActivity } from '@/lib/activity/log';
 import Property from '@/lib/models/Property';
+import { logActivity } from '@/lib/activity/log';
+import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import { NextResponse } from 'next/server';
 
 const ALLOWED_LEAD_FIELDS = [
@@ -13,10 +14,10 @@ const ALLOWED_LEAD_FIELDS = [
   'interested', 'ownedPropertyDraft', 'listingDraft',
   'step', 'cityAttempts', 'areaAttempts',
   'matchedProperties', 'currentPropertyIndex',
-  'source',           // ← new
-  'currentStatus',    // ← new
-  'assignedTo',       // ← new
-  'notes',  
+  'source',
+  'currentStatus',
+  'assignedTo',
+  'notes',
 ];
 
 function escapeRegex(str) {
@@ -35,13 +36,26 @@ export async function GET(request) {
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
     const skip = (page - 1) * limit;
     const status = searchParams.get('status');
+    const currentStatus = searchParams.get('currentStatus');
     const leadType = searchParams.get('leadType');
     const city = searchParams.get('city');
     const propertyType = searchParams.get('propertyType');
 
+    // ---- Determine caller role ----
+    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const session = verifySessionToken(token);
+    const isOwner = session?.role === 'owner';
+
     const query = {};
+
+    // Channel partners only see leads assigned to them
+    if (!isOwner && session?.name) {
+      query.assignedTo = session.name;
+    }
+
     if (status === 'completed') query.step = 'completed';
     else if (status === 'active') query.step = { $ne: 'completed' };
+    if (currentStatus) query.currentStatus = currentStatus;  
     if (leadType) query.leadType = leadType;
     if (city) query.city = { $regex: escapeRegex(city), $options: 'i' };
     if (propertyType) query.propertyType = { $regex: escapeRegex(propertyType), $options: 'i' };
@@ -92,8 +106,8 @@ export async function GET(request) {
       followUpStatus: lead.followUpStatus,
       followUpCount: lead.followUpCount,
       lastActivityAt: lead.lastActivityAt,
-       currentStatus: lead.currentStatus || 'new',
-  assignedTo: lead.assignedTo || '',
+      currentStatus: lead.currentStatus || 'new',
+      assignedTo: lead.assignedTo || '',
       createdAt: lead.createdAt,
       updatedAt: lead.updatedAt,
     }));
@@ -126,7 +140,6 @@ export async function POST(request) {
       if (body[key] !== undefined) cleanBody[key] = body[key];
     }
 
-    // Atomic upsert — avoids duplicate-key race on concurrent POSTs
     const lead = await Lead.findOneAndUpdate(
       { phone: body.phone },
       { $set: cleanBody, $setOnInsert: { phone: body.phone } },
@@ -135,17 +148,18 @@ export async function POST(request) {
 
     const isNew = lead.createdAt.getTime() === lead.updatedAt.getTime();
     if (isNew) {
-  await logActivity(request, {
-    action: 'lead.created',
-    category: 'lead',
-    description: `New lead from WhatsApp: ${lead.name || lead.phone}`,
-    targetType: 'Lead',
-    targetId: lead._id,
-    targetLabel: lead.name || lead.phone,
-    severity: 'success',
-    changes: { phone: lead.phone, source: 'whatsapp_bot' },
-  });}
-    
+      await logActivity(request, {
+        action: 'lead.created',
+        category: 'lead',
+        description: `New lead from WhatsApp: ${lead.name || lead.phone}`,
+        targetType: 'Lead',
+        targetId: lead._id,
+        targetLabel: lead.name || lead.phone,
+        severity: 'success',
+        changes: { phone: lead.phone, source: 'whatsapp_bot' },
+      });
+    }
+
     return NextResponse.json(
       { success: true, data: lead, message: isNew ? 'Lead created successfully' : 'Lead updated successfully' },
       { status: isNew ? 201 : 200 }

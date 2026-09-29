@@ -1,5 +1,6 @@
 import dbConnect, { isDbConnected } from '@/lib/mongodb';
 import SiteVisit from '@/lib/models/SiteVisit';
+import { verifySessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import { NextResponse } from 'next/server';
 
 function startOfDay(d = new Date()) {
@@ -13,11 +14,22 @@ function endOfDay(d = new Date()) {
   return x;
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
     if (!isDbConnected()) {
       const conn = await dbConnect();
       if (!conn) return NextResponse.json({ error: 'DB unavailable' }, { status: 503 });
+    }
+
+    // ---- Determine caller role ----
+    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const session = verifySessionToken(token);
+    const isOwner = session?.role === 'owner';
+
+    // Channel partners only see their own visits — every count is scoped
+    const scope = {};
+    if (!isOwner && session?.name) {
+      scope.channelPartnerName = session.name;
     }
 
     const todayStart = startOfDay();
@@ -32,17 +44,17 @@ export async function GET() {
       rescheduledCount,
       cancelledCount,
     ] = await Promise.all([
-      SiteVisit.countDocuments({}),
+      SiteVisit.countDocuments({ ...scope }),
       SiteVisit.countDocuments({
+        ...scope,
         scheduledDate: { $gte: todayStart, $lte: todayEnd },
         status: { $nin: ['cancelled'] },
       }),
-      // Treat both 'pending' and 'scheduled' as pending — webhook creates 'scheduled'
-      SiteVisit.countDocuments({ status: { $in: ['pending', 'scheduled'] } }),
-      SiteVisit.countDocuments({ status: 'completed' }),
-      SiteVisit.countDocuments({ status: 'scheduled' }),
-      SiteVisit.countDocuments({ status: 'rescheduled' }),
-      SiteVisit.countDocuments({ status: 'cancelled' }),
+      SiteVisit.countDocuments({ ...scope, status: { $in: ['pending', 'scheduled'] } }),
+      SiteVisit.countDocuments({ ...scope, status: 'completed' }),
+      SiteVisit.countDocuments({ ...scope, status: 'scheduled' }),
+      SiteVisit.countDocuments({ ...scope, status: 'rescheduled' }),
+      SiteVisit.countDocuments({ ...scope, status: 'cancelled' }),
     ]);
 
     return NextResponse.json({

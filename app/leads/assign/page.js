@@ -12,6 +12,7 @@ import {
 
 const STATUS_OPTIONS = [
   { value: 'new', label: 'New', tone: 'bg-[#e6f0fb] text-[#2a6ba8]', dot: 'bg-[#2a6ba8]' },
+   { value: 'follow_up', label: 'Follow Up', tone: 'bg-[#f3e8ff] text-[#7a3aa8]', dot: 'bg-[#7a3aa8]' },
   { value: 'active', label: 'Active', tone: 'bg-[#fef7e0] text-[#b68b40]', dot: 'bg-[#b68b40]' },
   { value: 'contacted', label: 'Contacted', tone: 'bg-[#e0f2fe] text-[#0284c7]', dot: 'bg-[#0284c7]' },
   { value: 'interested', label: 'Interested', tone: 'bg-[#f3e8ff] text-[#7a3aa8]', dot: 'bg-[#7a3aa8]' },
@@ -48,7 +49,7 @@ export default function LeadAssignmentPage() {
         page: String(pagination.page),
         limit: String(pagination.limit),
       });
-      if (filterStatus) params.set('status', filterStatus);
+      if (filterStatus) params.set('currentStatus', filterStatus);
       if (filterCity) params.set('city', filterCity);
 
       const res = await fetch(`/api/leads?${params}`);
@@ -511,7 +512,7 @@ export default function LeadAssignmentPage() {
                   )}
                   {activePartners.map((p) => (
                     <option key={p._id} value={p.name}>
-                     {p.name} — @{p.username}
+                     {p.name}
                     </option>
                   ))}
                 </select>
