@@ -1,4 +1,4 @@
-// proxy.js (project root — Next.js 16 renamed middleware → proxy)
+// proxy.js (project root — Next.js 16)
 import { NextResponse } from 'next/server';
 
 const SESSION_COOKIE_NAME = 'hh_session';
@@ -23,7 +23,6 @@ async function verifySessionTokenEdge(token, secret) {
       false,
       ['verify']
     );
-    // crypto.subtle.verify is constant-time
     const valid = await crypto.subtle.verify(
       'HMAC',
       key,
@@ -47,7 +46,7 @@ export async function proxy(request) {
   // ---- PUBLIC APIs (no cookie needed) ----
   const isPublicApi =
     pathname.startsWith('/api/auth/') ||
-    pathname === '/api/webhook'; // WhatsApp webhook — Meta posts here, no cookie
+    pathname === '/api/webhook';
   if (isPublicApi) return NextResponse.next();
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
@@ -89,8 +88,10 @@ export async function proxy(request) {
 }
 
 export const config = {
-  // Skip Next internals and static files (logo.png etc. must load on the login page)
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js|map|woff2?|txt)$).*)',
+    // NOTE: `js` is intentionally not excluded — Next 16 compiles dynamic API
+    // routes through a `.js`-suffixed internal path, and excluding `js` here
+    // causes those routes to 404 because the proxy never runs on them.
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|map|woff2?|txt)$).*)',
   ],
 };

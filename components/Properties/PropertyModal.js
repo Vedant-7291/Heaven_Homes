@@ -29,7 +29,7 @@ const FOOD_PREFERENCES = [
   { value: 'non_vegetarian', label: 'Non-Vegetarians' },
 ];
 
-const RES_BUY_TYPES = ['apartment', 'flat', 'house', 'villa', 'builder_floor', 'studio', 'penthouse', 'farmhouse'];
+const RES_BUY_TYPES = ['apartment', 'flat', 'house', 'villa', 'builder_floor', 'studio', 'penthouse', 'farmhouse','plot'];
 const COM_BUY_TYPES = ['office', 'shop', 'showroom', 'warehouse', 'industrial', 'coworking'];
 const RES_RENT_TYPES = ['apartment', 'flat', 'house', 'villa', 'builder_floor', 'pg', 'studio', 'farmhouse'];
 const COM_RENT_TYPES = ['office', 'shop', 'showroom', 'warehouse', 'coworking', 'factory'];
@@ -82,6 +82,7 @@ const SUBTYPE_LABEL = {
   farmhouse: 'Farmhouse', pg: 'PG', office: 'Office Space', shop: 'Shop / Retail',
   showroom: 'Showroom', warehouse: 'Warehouse / Godown', industrial: 'Industrial',
   coworking: 'Co-working Space', factory: 'Factory',
+  plot: 'Plot / Land',
 };
 
 const EMPTY_FORM = {
@@ -181,6 +182,12 @@ brokerageAmount: property.brokerageAmount || '',
       setFormData((prev) => ({ ...prev, categoryTab, ...map[categoryTab] }));
     }
   }, [categoryTab]);
+  // Plots don't have a BHK configuration — set it automatically instead
+useEffect(() => {
+  if (categoryTab === 'residential_buy' && formData.propertySubType === 'plot' && formData.configuration !== 'plot') {
+    setFormData((prev) => ({ ...prev, configuration: 'plot' }));
+  }
+}, [categoryTab, formData.propertySubType]);
 
   const featureList = FEATURE_LISTS[categoryTab] || [];
 
@@ -409,6 +416,7 @@ brokerageAmount: property.brokerageAmount || '',
 
             {categoryTab === 'residential_buy' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 {formData.propertySubType !== 'plot' && (
                 <Field label="Configuration" required>
                   <select name="configuration" value={formData.configuration} onChange={handleChange} className={INPUT_CLASS}>
                     <option value="">Select configuration</option>
@@ -416,7 +424,7 @@ brokerageAmount: property.brokerageAmount || '',
                       <option key={c} value={c}>{c.toUpperCase().replace('BHK', ' BHK')}</option>
                     ))}
                   </select>
-                </Field>
+                </Field> )}
                 <Field label="Area / Size (Sq Ft)" required>
                   <input type="number" name="areaSqft" value={formData.areaSqft} onChange={handleChange} placeholder="1450" className={INPUT_CLASS} />
                 </Field>

@@ -29,11 +29,14 @@ export default function Sidebar({ isSidebarOpen, toggleSidebar, isMobile = false
    
     { name: 'Site Visit Management', path: '/site-visits', icon: Calendar },
     { name: 'Rent Out Property Requests', path: '/rent-out', icon: Home },
-    { name: 'Lead Assignment', path: '/leads/assign', icon: UserPlus },
+   
     ...(isOwner
-      ? [{ name: 'Manage Team & Role-Based Access', path: '/settings/team', icon: Shield }]
-      : []),
-    { name: 'Activity Log', path: '/activity-log', icon: Activity },
+      ? [{ name: 'Manage Team & Role-Based Access', path: '/settings/team', icon: Shield },
+         { name: 'Lead Assignment', path: '/leads/assign', icon: UserPlus },
+         { name: 'Activity Log', path: '/activity-log', icon: Activity },
+      ]
+      : []), 
+    
   ];
 
   const handleLogout = async () => {
